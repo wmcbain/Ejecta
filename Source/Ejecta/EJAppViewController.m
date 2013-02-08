@@ -23,7 +23,6 @@ static EJAppViewController * _ejectaInstance = NULL;
 		_landscapeMode = [[[[NSBundle mainBundle] infoDictionary]
 			objectForKey:@"UIInterfaceOrientation"] hasPrefix:@"UIInterfaceOrientationLandscape"];
 		_ejectaInstance = self;
-        [[EJJavaScriptView sharedView] loadDefaultScripts];
     }
 	return self;
 }
