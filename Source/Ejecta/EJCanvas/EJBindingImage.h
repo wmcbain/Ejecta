@@ -8,6 +8,6 @@
 	BOOL loading;
 }
 
-@property (readonly, nonatomic) EJTexture * texture;
+@property (strong, nonatomic) EJTexture * texture;
 
 @end

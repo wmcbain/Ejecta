@@ -16,11 +16,11 @@
 	NSLog(@"Loading Image: %@", path);
 	NSString * fullPath = [[EJJavaScriptView sharedView] pathForResource:path];
 	
-	texture = [[EJTexture cachedTextureWithPath:fullPath callback:^{
+	self.texture = [EJTexture cachedTextureWithPath:fullPath callback:^{
 		loading = NO;
 		[self triggerEvent:(texture.textureId ? @"load" : @"error") argc:0 argv:NULL];		
 		JSValueUnprotect([EJJavaScriptView sharedView].jsGlobalContext, jsObject);
-	}] retain];
+	}];
 }
 
 - (void)dealloc {
