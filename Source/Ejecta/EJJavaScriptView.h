@@ -45,7 +45,7 @@
 
 @property (nonatomic, assign, readonly) JSGlobalContextRef jsGlobalContext;
 
-@property (nonatomic, assign, readonly) NSMutableDictionary * textureCache;
+@property (nonatomic, strong, readonly) NSMutableDictionary * textureCache;
 @property (nonatomic, strong, readonly) EJOpenALManager * openALManager;
 @property (nonatomic, strong, readonly) EJGLProgram2D * glProgram2DFlat;
 @property (nonatomic, strong, readonly) EJGLProgram2D * glProgram2DTexture;
