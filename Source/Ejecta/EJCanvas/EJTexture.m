@@ -27,19 +27,35 @@
 	return self;
 }
 
+- (id)init {
+    if( self = [super init] ) {
+		contentScale = 1;
+		owningContext = kEJTextureOwningContextCanvas2D;
+    }
+    return self;
+}
+
 - (id)initWithPath:(NSString *)path {
 	// For loading on the main thread (blocking)
 	
-	if( self = [super init] ) {
-		contentScale = 1;
+	if( self = [self init] ) {
 		fullPath = [path retain];
-		owningContext = kEJTextureOwningContextCanvas2D;
 		
 		NSMutableData *pixels = [self loadPixelsFromPath:path];
 		[self createWithPixels:pixels format:GL_RGBA];
 	}
 
 	return self;
+}
+
+- (id)initWithImage:(UIImage *)anImage {
+	// For loading on the main thread (blocking)
+
+    if (self = [self init]) {
+        NSMutableData *pixels = [self loadPixelsFromImage:anImage];
+        [self createWithPixels:pixels format:GL_RGBA];
+    }
+    return self;
 }
 
 + (id)cachedTextureWithPath:(NSString *)path loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback {
@@ -69,32 +85,48 @@
 
 - (id)initWithPath:(NSString *)path loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback {
 	// For loading on a background thread (non-blocking)
-	if( self = [super init] ) {
-		contentScale = 1;
+	if( self = [self init] ) {
 		fullPath = [path retain];
-		owningContext = kEJTextureOwningContextCanvas2D;
 		
 		loadCallback = [[NSBlockOperation alloc] init];
 		
 		// Load the image file in a background thread
 		[queue addOperationWithBlock:^{
 			NSMutableData *pixels = [self loadPixelsFromPath:path];
-			
-			// Upload the pixel data in the main thread, otherwise the GLContext gets confused.	
-			// We could use a sharegroup here, but it turned out quite buggy and has little
-			// benefits - the main bottleneck is loading the image file.
-			[loadCallback addExecutionBlock:^{
-				[self createWithPixels:pixels format:GL_RGBA];
-				[loadCallback release];
-				loadCallback = nil;
-			}];
-			[callback addDependency:loadCallback];
-			
-			[NSOperationQueue.mainQueue addOperation:loadCallback];
-			[NSOperationQueue.mainQueue addOperation:callback];
+			[self createWithPixels:pixels callback:callback];
 		}];
 	}
 	return self;
+}
+
+- (id)initWithImage:(UIImage *)image loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback {
+    // For loading on a background thread (non-blocking)
+	if( self = [self init] ) {
+        fullImage = image;
+        
+        loadCallback = [[NSBlockOperation alloc] init];
+        // Load the image file in a background thread
+		[queue addOperationWithBlock:^{
+			NSMutableData *pixels = [self loadPixelsFromImage:image];
+			[self createWithPixels:pixels callback:callback];
+		}];
+    }
+    return self;
+}
+
+- (void)createWithPixels:(NSMutableData*)pixels callback:(NSOperation*)callback {
+    // Upload the pixel data in the main thread, otherwise the GLContext gets confused.
+    // We could use a sharegroup here, but it turned out quite buggy and has little
+    // benefits - the main bottleneck is loading the image file.
+    [loadCallback addExecutionBlock:^{
+        [self createWithPixels:pixels format:GL_RGBA];
+        [loadCallback release];
+        loadCallback = nil;
+    }];
+    [callback addDependency:loadCallback];
+    
+    [NSOperationQueue.mainQueue addOperation:loadCallback];
+    [NSOperationQueue.mainQueue addOperation:callback];
 }
 
 - (id)initWithWidth:(int)widthp height:(int)heightp {
@@ -145,6 +177,7 @@
 	[loadCallback release];
 	
 	[fullPath release];
+    [fullImage release];
 	[textureStorage release];
 	[super dealloc];
 }
@@ -302,8 +335,12 @@
 		NSLog(@"Error Loading image %@ - not found.", path);
 		return NULL;
 	}
-	
-	CGImageRef image = tmpImage.CGImage;
+    
+    return [self loadPixelsFromImage:tmpImage];
+}
+
+- (NSMutableData *)loadPixelsFromImage:(UIImage*)tmpImage {
+    CGImageRef image = tmpImage.CGImage;
 	
 	width = CGImageGetWidth(image);
 	height = CGImageGetHeight(image);

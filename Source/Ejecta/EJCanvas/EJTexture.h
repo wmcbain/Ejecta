@@ -15,6 +15,7 @@ typedef enum {
 	BOOL cached;
 	short width, height;
 	NSString *fullPath;
+    UIImage *fullImage;
 	EJTextureStorage *textureStorage;
 	GLenum format;
 	GLuint fbo;
@@ -28,6 +29,8 @@ typedef enum {
 - (id)initWithPath:(NSString *)path;
 + (id)cachedTextureWithPath:(NSString *)path loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback;
 - (id)initWithPath:(NSString *)path loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback;
+- (id)initWithImage:(UIImage*)image;
+- (id)initWithImage:(UIImage *)image loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback;
 
 - (id)initWithWidth:(int)widthp height:(int)heightp;
 - (id)initWithWidth:(int)widthp height:(int)heightp format:(GLenum) format;
