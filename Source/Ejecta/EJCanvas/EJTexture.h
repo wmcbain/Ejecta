@@ -15,7 +15,6 @@ typedef enum {
 	BOOL cached;
 	short width, height;
 	NSString *fullPath;
-    UIImage *fullImage;
 	EJTextureStorage *textureStorage;
 	GLenum format;
 	GLuint fbo;

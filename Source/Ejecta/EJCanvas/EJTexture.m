@@ -102,7 +102,6 @@
 - (id)initWithImage:(UIImage *)image loadOnQueue:(NSOperationQueue *)queue callback:(NSOperation *)callback {
     // For loading on a background thread (non-blocking)
 	if( self = [self init] ) {
-        fullImage = image;
         
         loadCallback = [[NSBlockOperation alloc] init];
         // Load the image file in a background thread
@@ -177,7 +176,6 @@
 	[loadCallback release];
 	
 	[fullPath release];
-    [fullImage release];
 	[textureStorage release];
 	[super dealloc];
 }
