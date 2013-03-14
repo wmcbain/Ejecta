@@ -22,4 +22,6 @@
 
 @interface EJBindingKeyInput : EJBindingEventedBase <EJKeyInputDelegate> 
 
++ (EJBindingKeyInput *)activeKeyInput;
+
 @end

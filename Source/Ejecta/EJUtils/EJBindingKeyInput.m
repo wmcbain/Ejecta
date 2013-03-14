@@ -55,11 +55,22 @@
 
 @implementation EJBindingKeyInput
 
+static EJBindingKeyInput *_activeKeyInput;
+
++ (EJBindingKeyInput *)activeKeyInput
+{
+    return _activeKeyInput;
+}
+
 - (void)createWithJSObject:(JSObjectRef)obj scriptView:(EJJavaScriptView *)view {
 	[super createWithJSObject:obj scriptView:view];
     self.inputController = [[[EJKeyInputResponder alloc] init] autorelease];
     self.inputController.delegate = self;
     self.value = [NSMutableString string];
+    
+    if (!_activeKeyInput) {
+        _activeKeyInput = self;
+    }
 }
 
 - (void)dealloc
