@@ -6,23 +6,20 @@
 @synthesize inputView = ej_inputView;
 @synthesize inputAccessoryView = ej_inputAccessoryView;
 
-- (void)dealloc
-{
+- (void)dealloc{
     [ej_inputView release];
     [ej_inputAccessoryView release];
     [super dealloc];
 }
 
-- (UIView *)inputView
-{
+- (UIView *)inputView{
     if (ej_inputView) {
         return ej_inputView;
     }
     return [super inputView];
 }
 
-- (UIView *)inputAccessoryView
-{
+- (UIView *)inputAccessoryView{
     if (ej_inputAccessoryView) {
         return ej_inputAccessoryView;
     }
