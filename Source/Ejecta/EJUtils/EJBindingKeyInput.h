@@ -13,13 +13,22 @@
 - (void)keyInputDidBecomeFirstResponder:(EJKeyInputResponder*)keyInput;
 @end
 
-@interface EJKeyInputResponder : UIResponder <UIKeyInput>
+@interface EJKeyInputResponder : UIResponder <UIKeyInput>{
+    
+@private
+    UIView *ej_inputView;
+    UIView *ej_inputAccessoryView;
+}
 @property (nonatomic, unsafe_unretained) NSObject <EJKeyInputDelegate>*delegate;
+@property (nonatomic, strong) UIView *inputView;
+@property (nonatomic, strong) UIView *inputAccessoryView;
 @end
 
 #pragma mark -
 #pragma mark EJBindingKeyInput
 
-@interface EJBindingKeyInput : EJBindingEventedBase <EJKeyInputDelegate> 
+@interface EJBindingKeyInput : EJBindingEventedBase <EJKeyInputDelegate>
+
+@property (nonatomic, retain, readonly) EJKeyInputResponder *inputResponder;
 
 @end

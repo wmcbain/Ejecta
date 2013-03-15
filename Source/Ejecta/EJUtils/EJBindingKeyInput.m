@@ -3,6 +3,31 @@
 #import "EJJavaScriptView.h"
 
 @implementation EJKeyInputResponder
+@synthesize inputView = ej_inputView;
+@synthesize inputAccessoryView = ej_inputAccessoryView;
+
+- (void)dealloc
+{
+    [ej_inputView release];
+    [ej_inputAccessoryView release];
+    [super dealloc];
+}
+
+- (UIView *)inputView
+{
+    if (ej_inputView) {
+        return ej_inputView;
+    }
+    return [super inputView];
+}
+
+- (UIView *)inputAccessoryView
+{
+    if (ej_inputAccessoryView) {
+        return ej_inputAccessoryView;
+    }
+    return [super inputAccessoryView];
+}
 
 - (UIResponder*)nextResponder{
     return [self.delegate nextResponderForKeyInput:self];
@@ -49,36 +74,36 @@
 @end
 
 @interface EJBindingKeyInput ()
-@property (nonatomic, retain) EJKeyInputResponder *inputController;
 @property (nonatomic, retain) NSMutableString *value;
+@property (nonatomic, retain, readwrite) EJKeyInputResponder *inputResponder;
 @end
 
 @implementation EJBindingKeyInput
 
 - (void)createWithJSObject:(JSObjectRef)obj scriptView:(EJJavaScriptView *)view {
 	[super createWithJSObject:obj scriptView:view];
-    self.inputController = [[[EJKeyInputResponder alloc] init] autorelease];
-    self.inputController.delegate = self;
+    self.inputResponder = [[[EJKeyInputResponder alloc] init] autorelease];
+    self.inputResponder.delegate = self;
     self.value = [NSMutableString string];
 }
 
 - (void)dealloc
 {
-    self.inputController.delegate = nil;
-    self.inputController = nil;
+    self.inputResponder.delegate = nil;
+    self.inputResponder = nil;
     [super dealloc];
 }
 
 EJ_BIND_FUNCTION(focus, ctx, argc, argv){
-    return JSValueMakeBoolean(ctx, [self.inputController becomeFirstResponder]);
+    return JSValueMakeBoolean(ctx, [self.inputResponder becomeFirstResponder]);
 }
 
 EJ_BIND_FUNCTION(blur, ctx, argc, argv){
-    return JSValueMakeBoolean(ctx, [self.inputController resignFirstResponder]);
+    return JSValueMakeBoolean(ctx, [self.inputResponder resignFirstResponder]);
 }
 
 EJ_BIND_FUNCTION(isOpen, ctx, argc, argv){
-    return JSValueMakeBoolean(ctx, [self.inputController isFirstResponder]);
+    return JSValueMakeBoolean(ctx, [self.inputResponder isFirstResponder]);
 }
 
 EJ_BIND_GET(value, ctx){
