@@ -2,6 +2,9 @@
 #import "EJBindingKeyInput.h"
 #import "EJJavaScriptView.h"
 
+NSString * const EJBindingKeyInputDidBecomeFirstResponder = @"EJBindingKeyInputDidBecomeFirstResponder";
+NSString * const EJBindingKeyInputDidResignFirstResponder = @"EJBindingKeyInputDidResignFirstResponder";
+
 @implementation EJKeyInputResponder
 @synthesize inputView = ej_inputView;
 @synthesize inputAccessoryView = ej_inputAccessoryView;
@@ -139,10 +142,13 @@ EJ_BIND_EVENT(change);
 
 - (void)keyInputDidResignFirstResponderStatus:(EJKeyInputResponder *)keyInput{
     [self triggerEvent:@"blur" argc:0 argv:NULL];
+    [[NSNotificationCenter defaultCenter] postNotificationName:EJBindingKeyInputDidResignFirstResponder object:self userInfo:nil];
 }
 
 - (void)keyInputDidBecomeFirstResponder:(EJKeyInputResponder *)keyInput{
     [self triggerEvent:@"focus" argc:0 argv:NULL];
+    [[NSNotificationCenter defaultCenter] postNotificationName:EJBindingKeyInputDidBecomeFirstResponder object:self userInfo:nil];
+
 }
 
 @end

@@ -13,6 +13,9 @@
 - (void)keyInputDidBecomeFirstResponder:(EJKeyInputResponder*)keyInput;
 @end
 
+extern NSString * const EJBindingKeyInputDidBecomeFirstResponder;
+extern NSString * const EJBindingKeyInputDidResignFirstResponder;
+
 @interface EJKeyInputResponder : UIResponder <UIKeyInput>{
     
 @private
