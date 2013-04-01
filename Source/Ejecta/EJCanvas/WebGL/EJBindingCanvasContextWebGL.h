@@ -14,6 +14,8 @@
 #define EJ_CANVAS_MAX_TEXTURE_UNITS 8
 #define EJ_BUFFER_OFFSET(i) ((char *)NULL + (i))
 
+#define EJ_BIND_CONST_GL(NAME) EJ_BIND_CONST(NAME, GL_##NAME)
+
 typedef struct {
 	EJTexture *texture;
 	JSObjectRef jsTexture;
@@ -37,6 +39,10 @@ typedef struct {
 	NSMutableDictionary *programs;
 	NSMutableDictionary *shaders;
 	
+    NSMutableDictionary *extensions;
+    
+    NSMutableDictionary *vertexArrays;
+    
 	EJCanvasContextTextureUnit textureUnits[EJ_CANVAS_MAX_TEXTURE_UNITS];
 	EJCanvasContextTextureUnit *activeTexture;
 }
@@ -49,5 +55,10 @@ typedef struct {
 - (void)deleteTexture:(GLuint)texture;
 - (void)deleteProgram:(GLuint)program;
 - (void)deleteShader:(GLuint)shader;
+
+- (void)addVertexArray:(GLuint)vertexArray obj:(JSObjectRef)objp;
+- (void)deleteVertexArray:(GLuint)vertexArray;
+
+@property (readonly, nonatomic) EJCanvasContextWebGL *renderingContext;
 
 @end

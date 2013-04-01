@@ -1,5 +1,6 @@
 #import "EJBindingCanvasContextWebGL.h"
 #import "EJBindingWebGLObjects.h"
+#import "EJBindingWebGLExtensions.h"
 #import "EJDrawable.h"
 #import "EJTexture.h"
 #import "EJConvertWebGL.h"
@@ -9,6 +10,7 @@
 
 
 @implementation EJBindingCanvasContextWebGL
+@synthesize renderingContext;
 
 - (id)initWithCanvas:(JSObjectRef)canvas renderingContext:(EJCanvasContextWebGL *)renderingContextp {
 	if( self = [super initWithContext:NULL argc:0 argv:NULL] ) {
@@ -21,6 +23,9 @@
 		shaders = [NSMutableDictionary new];
 		framebuffers = [NSMutableDictionary new];
 		renderbuffers = [NSMutableDictionary new];
+
+		vertexArrays = [NSMutableDictionary new];
+		extensions = [NSMutableDictionary new];
 		
 		activeTexture = &textureUnits[0];
 	}
@@ -50,6 +55,12 @@
 	
 	[textures release];
 	
+	for( NSValue *v in extensions ) { JSValueUnprotectSafe(scriptView.jsGlobalContext, v.pointerValue); }
+	[extensions release];
+    
+	for( NSNumber *n in vertexArrays ) { GLuint array = n.intValue; glDeleteVertexArraysOES(1, &array); }
+	[vertexArrays release];
+    
 	[EAGLContext setCurrentContext:oldContext];
 	
 	[renderingContext release];
@@ -125,6 +136,18 @@
 
 }
 
+- (void)addVertexArray:(GLuint)vertexArray obj:(JSObjectRef)objp {
+	vertexArrays[@(vertexArray)] = [NSValue valueWithPointer:objp];
+}
+
+- (void)deleteVertexArray:(GLuint)vertexArray {
+	NSNumber *key = @(vertexArray);
+	if( vertexArrays[key] ) {
+		scriptView.currentRenderingContext = renderingContext;
+		glDeleteVertexArraysOES(1, &vertexArray);
+		[vertexArrays removeObjectForKey:key];
+	}
+}
 
 
 EJ_BIND_GET(canvas, ctx) {
@@ -166,15 +189,67 @@ EJ_BIND_FUNCTION(isContextLost, ctx, argc, argv) {
 }
 
 EJ_BIND_FUNCTION(getSupportedExtensions, ctx, argc, argv) {
-	return JSObjectMakeArray(ctx, 0, NULL, NULL);
+	scriptView.currentRenderingContext = renderingContext;
+	
+	const char *allExtension = (const char *)glGetString(GL_EXTENSIONS);
+	
+	JSValueRef *args = malloc(EJWebGLExtensionsCount * sizeof(JSObjectRef));
+	int count = 0;
+	for( int i = 0; i < EJWebGLExtensionsCount; i++ ) {
+		if( strstr(allExtension, EJWebGLExtensions[i].internalName) ) {
+			args[count++] = NSStringToJSValue(ctx, @(EJWebGLExtensions[i].exposedName));
+		}
+	}
+	JSObjectRef array = JSObjectMakeArray(ctx, count, args, NULL);
+	
+	free(args);
+	return array;
 }
 
 EJ_BIND_FUNCTION(getExtension, ctx, argc, argv) {
+	if( argc < 1 ) { return NULL; }
+
+	scriptView.currentRenderingContext = renderingContext;
+	
+	NSString *name = JSValueToNSString(ctx, argv[0]);
+	
+	// If extension has been activated before just return the same extension object
+	if( extensions[name] ) {
+		return (JSObjectRef)[extensions[name] pointerValue];
+	}
+	
+	// Find the internal name for the extension and check if it's available
+	BOOL extensionAvialable = false;
+	const char *exposedName = name.UTF8String;
+	for( int i = 0; i < EJWebGLExtensionsCount; i++ ) {
+		
+		if( strcmp(exposedName, EJWebGLExtensions[i].exposedName) == 0 ) {
+			const char *allExtension = (const char *)glGetString(GL_EXTENSIONS);
+			extensionAvialable = (strstr(allExtension, EJWebGLExtensions[i].internalName) != NULL);
+			break;
+		}
+	}
+	
+	if( !extensionAvialable ) {
+		return NULL;
+	}
+	
+	// Construct the extension binding and return it
+	JSObjectRef jsExtension;
+	NSString *fullClassName = [@"EJBindingWebGLExtension" stringByAppendingString:(NSString *)name];
+	Class class = NSClassFromString(fullClassName);
+
+	if( class && [class isSubclassOfClass:EJBindingWebGLExtension.class] ) {
+		jsExtension = [class createJSObjectWithContext:ctx scriptView:scriptView webglContext:self];
+		extensions[name] = [NSValue valueWithPointer:jsExtension];
+		JSValueProtect(ctx, jsExtension);
+		return jsExtension;
+	}
 	return NULL;
 }
 
 EJ_BIND_FUNCTION(activeTexture, ctx, argc, argv) {
-	if ( argc < 1 ) { return NULL; }
+	if( argc < 1 ) { return NULL; }
 	
 	scriptView.currentRenderingContext = renderingContext;
 	
@@ -213,13 +288,13 @@ EJ_BIND_FUNCTION(bindAttribLocation, ctx, argc, argv) {
 
 
 EJ_BIND_FUNCTION(bindBuffer, ctx, argc, argv) {
-		if( argc < 2 ) { return NULL; }
-		scriptView.currentRenderingContext = renderingContext;
-		GLenum target = JSValueToNumberFast(ctx, argv[0]);
-		GLuint index = [EJBindingWebGLBuffer indexFromJSValue:argv[1]];
-		glBindBuffer(target, index);
-		return NULL;
-	}
+	if( argc < 2 ) { return NULL; }
+	scriptView.currentRenderingContext = renderingContext;
+	GLenum target = JSValueToNumberFast(ctx, argv[0]);
+	GLuint index = [EJBindingWebGLBuffer indexFromJSValue:argv[1]];
+	glBindBuffer(target, index);
+	return NULL;
+}
 
 #define EJ_BIND_BIND(I, NAME) \
 	EJ_BIND_FUNCTION(bind##NAME, ctx, argc, argv) { \
@@ -233,6 +308,7 @@ EJ_BIND_FUNCTION(bindBuffer, ctx, argc, argv) {
 		else { \
 			[renderingContext bind##NAME]; \
 		} \
+		renderingContext.bound##NAME = index; \
 		return NULL; \
 	}
 
@@ -876,7 +952,13 @@ EJ_BIND_FUNCTION(getShaderParameter, ctx, argc, argv) {
 	
 	GLint value;
 	glGetShaderiv(shader, pname, &value);
-	return JSValueMakeNumber(ctx, value);
+	
+	if( pname == GL_DELETE_STATUS || pname == GL_COMPILE_STATUS ) {
+		return JSValueMakeBoolean(ctx, value);
+	}
+	else { // GL_SHADER_TYPE || GL_INFO_LOG_LENGTH || GL_SHADER_SOURCE_LENGTH
+		return JSValueMakeNumber(ctx, value);
+	}
 }
 
 EJ_BIND_FUNCTION(getShaderPrecisionFormat, ctx, argc, argv) {
@@ -1716,8 +1798,6 @@ EJ_BIND_FUNCTION(viewport, ctx, argc, argv) {
 // ------------------------------------------------------------------------------------
 // Constants
 
-
-#define EJ_BIND_CONST_GL(NAME) EJ_BIND_CONST(NAME, GL_##NAME)
 
 // ClearBufferMask
 EJ_BIND_CONST_GL(DEPTH_BUFFER_BIT);

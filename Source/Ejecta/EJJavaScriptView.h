@@ -45,7 +45,6 @@
 	BOOL hasScreenCanvas;
 
 	BOOL isPaused;
-	float internalScaling;
 	
 	EJNonRetainingProxy	*proxy;
 
@@ -79,8 +78,6 @@
 @property (nonatomic, assign) BOOL pauseOnEnterBackground;
 @property (nonatomic, assign, getter = isPaused) BOOL isPaused; // Pauses drawing/updating of the JSView
 @property (nonatomic, assign) BOOL hasScreenCanvas;
-
-@property (nonatomic, assign) float internalScaling;
 
 @property (nonatomic, readonly) JSGlobalContextRef jsGlobalContext;
 @property (nonatomic, readonly) EJSharedOpenGLContext *openGLContext;
