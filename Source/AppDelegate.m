@@ -1,6 +1,8 @@
 
 #import "AppDelegate.h"
 #import "EJJavaScriptView.h"
+#import "EJTestTableViewController.h"
+
 @implementation AppDelegate
 @synthesize window;
 
@@ -13,9 +15,13 @@
 	// not being interacted with by touch. ie. games with motion control.
 	application.idleTimerDisabled = YES;
 	
-	EJAppViewController *vc = [[EJAppViewController alloc] init];
-    window.rootViewController = vc;
-	[vc release];
+    EJTestTableViewController *tableVC = [[EJTestTableViewController alloc] init];
+    
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:tableVC];
+    [tableVC release];
+    
+    window.rootViewController = nav;
+	[nav release];
 	
     return YES;
 }
