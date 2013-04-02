@@ -59,6 +59,8 @@
 		[displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
 		
 		// Create the global JS context in its own group, so it can be released properly
+        
+        // I've noticed you get back the exact same pointer reference the second time around.
 		jsGlobalContext = JSGlobalContextCreateInGroup(NULL, NULL);
 		jsUndefined = JSValueMakeUndefined(jsGlobalContext);
 		JSValueProtect(jsGlobalContext, jsUndefined);
@@ -97,6 +99,10 @@
 	JSValueUnprotect(jsGlobalContext, jsUndefined);
 	JSGlobalContextRef ctxref = jsGlobalContext;
 	jsGlobalContext = NULL;
+    
+    //Commenting off the release here prevents the crash.
+    // When you do deallocate, you get the following message:
+    //ERROR: JavaScriptCore heap deallocated while 19 values were still protected
 	JSGlobalContextRelease(ctxref);
 	
 	// Remove from notification center
