@@ -92,6 +92,7 @@
 @property (nonatomic, retain) EJCanvasContext<EJPresentable> *screenRenderingContext;
 
 @property (nonatomic, retain) NSOperationQueue *backgroundQueue;
+@property (nonatomic, retain) EJClassLoader *classLoader;
 
 - (id)initWithFrame:(CGRect)frame appFolder:(NSString *)folder;
 

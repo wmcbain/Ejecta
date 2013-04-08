@@ -23,17 +23,18 @@
 }
 
 + (JSObjectRef)createJSObjectWithContext:(JSContextRef)ctx
-	scriptView:(EJJavaScriptView *)scriptViewp
+	scriptView:(EJJavaScriptView *)scriptView
 	instance:(EJBindingBase *)instance
 {
 	// Create JSObject with the JSClass for this ObjC-Class
-	JSObjectRef obj = JSObjectMake( ctx, [EJClassLoader getJSClass:self], NULL );
+	JSObjectRef obj = JSObjectMake( ctx, [scriptView.classLoader getJSClass:self], NULL );
 	
 	// The JSObject retains the instance; it will be released by EJBindingBaseFinalize
 	JSObjectSetPrivate( obj, (void *)[instance retain] );
-	[instance createWithJSObject:obj scriptView:scriptViewp];
+
+	[instance createWithJSObject:obj scriptView:scriptView];
     
-    [scriptViewp didCreateNewObject:instance];
+    [scriptView didCreateNewObject:instance];
     
 	return obj;
 }
