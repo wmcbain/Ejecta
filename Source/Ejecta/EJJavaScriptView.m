@@ -354,6 +354,9 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
             NSLog(@"Exception caught getting value component \"%@\" in \"%@\"", p, objectPath);
             [self logException:exception ctx:jsGlobalContext];
             return NULL;
+        }else if(obj==jsUndefined){
+            NSLog(@"Undefined value component \"%@\" in \"%@\"", p, objectPath);
+            return NULL;
         }
 		
 		if( !obj ) { break; }
