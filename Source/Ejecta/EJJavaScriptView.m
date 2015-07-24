@@ -347,8 +347,14 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	NSArray *pathComponents = [objectPath componentsSeparatedByString:@"."];
 	for( NSString *p in pathComponents) {
 		JSStringRef name = JSStringCreateWithCFString((CFStringRef)p);
-		obj = JSObjectGetProperty( jsGlobalContext, (JSObjectRef)obj, name, NULL);
-		JSStringRelease(name);
+        JSValueRef exception = NULL;
+		obj = JSObjectGetProperty( jsGlobalContext, (JSObjectRef)obj, name, &exception);
+        JSStringRelease(name);
+        if( exception != NULL) {
+            NSLog(@"Exception caught getting value component \"%@\" in \"%@\"", p, objectPath);
+            [self logException:exception ctx:jsGlobalContext];
+            return NULL;
+        }
 		
 		if( !obj ) { break; }
 	}
