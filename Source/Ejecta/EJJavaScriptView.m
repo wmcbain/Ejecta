@@ -288,20 +288,24 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	
 	JSStringRef jsLinePropertyName = JSStringCreateWithUTF8CString("line");
 	JSStringRef jsFilePropertyName = JSStringCreateWithUTF8CString("sourceURL");
+    JSStringRef jsStackPropertyName = JSStringCreateWithUTF8CString("stack");
 	
 	JSObjectRef exObject = JSValueToObject( ctxp, exception, NULL );
 	JSValueRef line = JSObjectGetProperty( ctxp, exObject, jsLinePropertyName, NULL );
 	JSValueRef file = JSObjectGetProperty( ctxp, exObject, jsFilePropertyName, NULL );
+    JSValueRef stack = JSObjectGetProperty( ctxp, exObject, jsStackPropertyName, NULL );
 	
 	NSLog(
-		@"%@ at line %@ in %@",
+		@"%@ at line %@ in %@, stack: %@",
 		JSValueToNSString( ctxp, exception ),
 		JSValueToNSString( ctxp, line ),
-		JSValueToNSString( ctxp, file )
+		JSValueToNSString( ctxp, file ),
+          JSValueToNSString( ctxp, stack )
 	);
 	
 	JSStringRelease( jsLinePropertyName );
 	JSStringRelease( jsFilePropertyName );
+    JSStringRelease( jsStackPropertyName );
 }
 
 - (JSValueRef)jsValueForPath:(NSString *)objectPath {
