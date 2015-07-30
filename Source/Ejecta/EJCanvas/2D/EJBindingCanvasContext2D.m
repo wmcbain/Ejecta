@@ -198,35 +198,52 @@ EJ_BIND_SET(font, ctx, value) {
     float size = defaultSize;
     char name[64];
     char ptx;
-    char *start = string;
-    size_t fontLength = 0;
+    const char *start = string;
     while(*start != '\0'){
 	// Yeah, oldschool!
         size = defaultSize;
         while(*start != '\0' && isspace(*start)){ start++; } // skip to the first non-whitespace
-        fontLength = strcspn(start, ","); // will return the length if there's no comma
-        if(isdigit(*start)){
-            sscanf( start, "%fp%1[tx]%*[\"' ]%62[^\"']", &size, &ptx, name); // matches: 10.5p[tx] 'some font'
-            if( ptx == 't' ) { // pt or px?
-                size = ceilf(size*4.0/3.0);
-            }
-            
-        }else{
-            // no size
-            if(strspn(start, "\"' ")==0){
-                // no space or quotes
-                strncpy(name, start, fontLength);
-                name[fontLength] = '\0';
-            }else{
-                sscanf( start, "%*[\"' ]%62[^\"']", name); // matches: 'some font'
-            }
+        const char * curr = start;
+        bool startsWithSize = isdigit(*start);
+        bool inQuotes = false;
+        bool inSizeInfo = startsWithSize;
+        char quoteChar = 0;
+        size_t fontNameLength = 0;
+        if(startsWithSize){
+            size = strtof(start, (char**)&curr);
         }
-        
+        while (*curr != '\0') {
+            if(inQuotes){
+                if(*curr == quoteChar){
+                    inQuotes = false;
+                }else{
+                    name[fontNameLength++] = *curr;
+                }
+            }else if(inSizeInfo){
+                if(isspace(*curr)){
+                    inSizeInfo = false; // end of size
+                }else if(*curr=='p'){
+                    ptx = *(curr+1);
+                }
+            }else{
+                if(*curr == '\'' || *curr =='\"'){
+                    quoteChar = *curr;
+                    inQuotes = true;
+                }else if(*curr==','){
+                    break;
+                }else if(!isspace(*curr)){
+                    // no spaces outside quotes
+                    name[fontNameLength++] = *curr;
+                }
+            }
+            curr++;
+        };
+        name[fontNameLength] = '\0';
         font = [EJFontDescriptor descriptorWithName:@(name) size:size];
         if(nil!=font){
             break;
         }
-        start += fontLength;
+        start = curr;
         if(*start != '\0') start++;
     }
 	if( font ) {
