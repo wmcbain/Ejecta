@@ -55,10 +55,12 @@ EJ_BIND_FUNCTION(load, ctx, argc, argv ) {
 	if( argc < 1 ) return NULL;
 	
 	NSObject<UIApplicationDelegate> *app = [[UIApplication sharedApplication] delegate];
-	if( [app respondsToSelector:@selector(loadViewControllerWithScriptAtPath:)] ) {
+    SEL selector = NSSelectorFromString(@"loadViewControllerWithScriptAtPath:");
+    
+	if( [app respondsToSelector:selector] ) {
 		// Queue up the loading till the next frame; the script view may be in the
 		// midst of a timer update
-		[app performSelectorOnMainThread:@selector(loadViewControllerWithScriptAtPath:)
+		[app performSelectorOnMainThread:selector
 			withObject:JSValueToNSString(ctx, argv[0]) waitUntilDone:NO];
 	}
 	else {

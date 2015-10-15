@@ -2,10 +2,10 @@
 
 // Better be safe than sorry
 static const EJVideoScalingMode EJVideoToMPMovieScalingMode[] = {
-	[kEJVideoScalingModeNone] = MPMovieScalingModeNone,
-	[kEJVideoScalingModeAspectFit] = MPMovieScalingModeAspectFit,
-	[kEJVideoScalingModeAspectFill] = MPMovieScalingModeAspectFill,
-	[kEJVideoScalingModeFill] = MPMovieScalingModeFill
+	[kEJVideoScalingModeNone]       = (EJVideoScalingMode) MPMovieScalingModeNone,
+	[kEJVideoScalingModeAspectFit]  = (EJVideoScalingMode) MPMovieScalingModeAspectFit,
+	[kEJVideoScalingModeAspectFill] = (EJVideoScalingMode) MPMovieScalingModeAspectFill,
+	[kEJVideoScalingModeFill]       = (EJVideoScalingMode) MPMovieScalingModeFill
 };
 
 
@@ -156,7 +156,7 @@ EJ_BIND_FUNCTION(play, ctx, argc, argv) {
 	
 	player.view.frame = scriptView.bounds;
 	[scriptView addSubview:player.view];
-	player.scalingMode = EJVideoToMPMovieScalingMode[scalingMode];
+	player.scalingMode = (MPMovieScalingMode)EJVideoToMPMovieScalingMode[scalingMode];
 	player.controlStyle = showControls ? MPMovieControlStyleEmbedded : MPMovieControlStyleNone;
 	[player play];
 	
