@@ -1739,7 +1739,9 @@ static NSRunLoop *networkRunLoop = nil;
         _runLoop = [NSRunLoop currentRunLoop];
         dispatch_group_leave(_waitGroup);
         
-        // Add an empty run loop source to prevent runloop from spinning.
+        // The following code is taken from the GitHub @ 51b8e2b0c2
+        // https://github.com/square/SocketRocket/blob/51b8e2b0c2f63d7c5d5d3689622339165ffeba0f/SocketRocket/SRWebSocket.m
+
         CFRunLoopSourceContext sourceCtx = {
             .version = 0,
             .info = NULL,

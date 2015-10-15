@@ -1,6 +1,5 @@
 #import "EJBindingVideo.h"
 
-
 @implementation EJBindingVideo
 
 - (id)initWithContext:(JSContextRef)ctx argc:(size_t)argc argv:(const JSValueRef [])argv {

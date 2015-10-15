@@ -107,7 +107,7 @@ JSValueRef NSObjectToJSValue( JSContextRef ctx, NSObject *obj ) {
 		for( NSString *key in dict ) {
 			JSStringRef jsKey = JSStringCreateWithUTF8CString(key.UTF8String);
 			JSValueRef value = NSObjectToJSValue(ctx, dict[key]);
-			JSObjectSetProperty(ctx, (JSObjectRef)ret, jsKey, value, kJSPropertyAttributeNone, NULL);
+			JSObjectSetProperty(ctx, (JSObjectRef)ret, jsKey, value, 0, NULL);
 			JSStringRelease(jsKey);
 		}
 	}
