@@ -1,13 +1,13 @@
 Pod::Spec.new do |s|
   s.name      = 'Ejecta'
-  s.version   = '1.6-iOS7' # Corresponds to head of branch current_transform
+  s.version   = '1.6.1'
   s.license   = { :type => "MIT", :text => "Copyright (c) 2013 Dominic Szablewski."}
   s.homepage  = 'http://impactjs.com/ejecta'
   s.summary   = 'A Fast, Open Source JavaScript, Canvas & Audio Implementation for iOS.'
   s.author    = { 'Dominic Szablewski' => 'dominic.szablewski@gmail.com' }
   s.source    = { :git => 'https://github.com/paperlesspost/Ejecta.git', :tag => s.version.to_s }
   
-  s.platform = :ios
+  s.platform = :ios, 7.0
   s.ios.deployment_target = '8.0'
 
   s.source_files = 'Source/Ejecta/**/*.{h,m,mm}', 'Source/lib/SocketRocket/SRWebSocket.{h,m}'
