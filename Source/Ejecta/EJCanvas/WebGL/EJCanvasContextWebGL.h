@@ -11,7 +11,7 @@
 	GLuint depthStencilBuffer;
 	
 	GLint bufferWidth, bufferHeight;
-	EJJavaScriptView *scriptView;
+	__unsafe_unretained EJJavaScriptView *scriptView;
 }
 
 - (id)initWithScriptView:(EJJavaScriptView *)scriptView width:(short)width height:(short)height;
