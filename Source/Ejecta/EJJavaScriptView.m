@@ -52,7 +52,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 - (id)initWithFrame:(CGRect)frame appFolder:(NSString *)folder {
 	if( self = [super initWithFrame:frame] ) {
         [self setupWithAppFolder:folder];
-	}
+    }
 	return self;
 }
 
