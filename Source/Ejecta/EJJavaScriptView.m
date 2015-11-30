@@ -92,7 +92,13 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		glCurrentContext = openGLContext.glContext2D;
 		[EAGLContext setCurrentContext:glCurrentContext];
 		
-		[self loadScriptAtPath:EJECTA_BOOT_JS];
+        //Load the Ejecta.js from this bundle, rather than the main bundle
+        NSString *path = [NSString stringWithFormat:@"%@/%@", [[NSBundle bundleForClass:[self class]] resourcePath], @"Ejecta.js"];
+        
+        NSString *script = [NSString stringWithContentsOfFile:path
+                                                     encoding:NSUTF8StringEncoding error:NULL];
+        
+        [self evaluateScript:script sourceURL:path];
 	}
 	return self;
 }
