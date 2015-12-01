@@ -49,61 +49,60 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (id)initWithFrame:(CGRect)frame appFolder:(NSString *)folder {
 	if( self = [super initWithFrame:frame] ) {
-        [self setupWithAppFolder:folder];
+		oldSize = frame.size;
+		appFolder = [folder retain];
+
+		isPaused = false;
+
+		// CADisplayLink (and NSNotificationCenter?) retains it's target, but this
+		// is causing a retain loop - we can't completely release the scriptView
+		// from the outside.
+		// So we're using a "weak proxy" that doesn't retain the scriptView; we can
+		// then just invalidate the CADisplayLink in our dealloc and be done with it.
+		proxy = [[EJNonRetainingProxy proxyWithTarget:self] retain];
+
+		self.pauseOnEnterBackground = YES;
+
+		// Limit all background operations (image & sound loading) to one thread
+		backgroundQueue = [[NSOperationQueue alloc] init];
+		backgroundQueue.maxConcurrentOperationCount = 1;
+
+		timers = [[EJTimerCollection alloc] initWithScriptView:self];
+
+		displayLink = [[CADisplayLink displayLinkWithTarget:proxy selector:@selector(run:)] retain];
+		[displayLink setFrameInterval:1];
+		[displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+
+		// Create the global JS context in its own group, so it can be released properly
+		jsGlobalContext = JSGlobalContextCreateInGroup(NULL, NULL);
+		jsUndefined = JSValueMakeUndefined(jsGlobalContext);
+		JSValueProtect(jsGlobalContext, jsUndefined);
+
+		// Attach all native class constructors to 'Ejecta'
+		classLoader = [[EJClassLoader alloc] initWithScriptView:self name:@"Ejecta"];
+
+
+		// Retain the caches here, so even if they're currently unused in JavaScript,
+		// they will persist until the last scriptView is released
+		textureCache = [[EJSharedTextureCache instance] retain];
+		openALManager = [[EJSharedOpenALManager instance] retain];
+		openGLContext = [[EJSharedOpenGLContext instance] retain];
+
+		// Create the OpenGL context for Canvas2D
+		glCurrentContext = openGLContext.glContext2D;
+		[EAGLContext setCurrentContext:glCurrentContext];
+
+      //Load the Ejecta.js from this bundle, rather than the main bundle
+      NSString *path = [NSString stringWithFormat:@"%@/%@", [[NSBundle bundleForClass:[self class]] resourcePath], @"Ejecta.js"];
+
+      NSString *script = [NSString stringWithContentsOfFile:path
+                                                   encoding:NSUTF8StringEncoding error:NULL];
+
+      [self evaluateScript:script sourceURL:path];
 	}
 	return self;
 }
 
--(void)awakeFromNib {
-    [self setupWithAppFolder:EJECTA_DEFAULT_APP_FOLDER];
-}
-
--(void)setupWithAppFolder:(NSString*)folder {
-    oldSize = self.frame.size;
-    appFolder = [folder retain];
-    
-    isPaused = false;
-    
-    // CADisplayLink (and NSNotificationCenter?) retains it's target, but this
-    // is causing a retain loop - we can't completely release the scriptView
-    // from the outside.
-    // So we're using a "weak proxy" that doesn't retain the scriptView; we can
-    // then just invalidate the CADisplayLink in our dealloc and be done with it.
-    proxy = [[EJNonRetainingProxy proxyWithTarget:self] retain];
-    
-    self.pauseOnEnterBackground = YES;
-    
-    // Limit all background operations (image & sound loading) to one thread
-    backgroundQueue = [[NSOperationQueue alloc] init];
-    backgroundQueue.maxConcurrentOperationCount = 1;
-    
-    timers = [[EJTimerCollection alloc] initWithScriptView:self];
-    
-    displayLink = [[CADisplayLink displayLinkWithTarget:proxy selector:@selector(run:)] retain];
-    [displayLink setFrameInterval:1];
-    [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-    
-    // Create the global JS context in its own group, so it can be released properly
-    jsGlobalContext = JSGlobalContextCreateInGroup(NULL, NULL);
-    jsUndefined = JSValueMakeUndefined(jsGlobalContext);
-    JSValueProtect(jsGlobalContext, jsUndefined);
-    
-    // Attach all native class constructors to 'Ejecta'
-    classLoader = [[EJClassLoader alloc] initWithScriptView:self name:@"Ejecta"];
-    
-    
-    // Retain the caches here, so even if they're currently unused in JavaScript,
-    // they will persist until the last scriptView is released
-    textureCache = [[EJSharedTextureCache instance] retain];
-    openALManager = [[EJSharedOpenALManager instance] retain];
-    openGLContext = [[EJSharedOpenGLContext instance] retain];
-    
-    // Create the OpenGL context for Canvas2D
-    glCurrentContext = openGLContext.glContext2D;
-    [EAGLContext setCurrentContext:glCurrentContext];
-    
-    [self loadScriptAtPath:EJECTA_BOOT_JS];
-}
 
 - (void)dealloc {
 	// Wait until all background operations are finished. If we would just release the
@@ -111,7 +110,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	// could keep some dependencies dangling
 	[backgroundQueue waitUntilAllOperationsAreFinished];
 	[backgroundQueue release];
-	
+
 	// Careful, order is important! The JS context has to be released first; it will release
 	// the canvas objects which still need the openGLContext to be present, to release
 	// textures etc.
@@ -121,31 +120,31 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	JSGlobalContextRef ctxref = jsGlobalContext;
 	jsGlobalContext = NULL;
 	JSGlobalContextRelease(ctxref);
-	
+
 	// Remove from notification center
 	self.pauseOnEnterBackground = false;
-	
+
 	// Remove from display link
 	[displayLink invalidate];
 	[displayLink release];
-	
+
 	[textureCache release];
 	[openALManager release];
 	[classLoader release];
-	
+
 	if( jsBlockFunctionClass ) {
 		JSClassRelease(jsBlockFunctionClass);
 	}
 	[screenRenderingContext finish];
 	[screenRenderingContext release];
 	[currentRenderingContext release];
-	
+
 	[touchDelegate release];
 	[windowEventsDelegate release];
 	[deviceMotionDelegate release];
-	
+
 	[timers release];
-	
+
 	[openGLContext release];
 	[appFolder release];
 	[proxy release];
@@ -162,11 +161,11 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		UIApplicationWillEnterForegroundNotification,
 		UIApplicationDidBecomeActiveNotification
 	];
-	
+
 	if (pauses) {
 		[self observeKeyPaths:pauseN selector:@selector(pause)];
 		[self observeKeyPaths:resumeN selector:@selector(resume)];
-	} 
+	}
 	else {
 		[self removeObserverForKeyPaths:pauseN];
 		[self removeObserverForKeyPaths:resumeN];
@@ -190,7 +189,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)layoutSubviews {
 	[super layoutSubviews];
-	
+
 	// Check if we did resize
 	CGSize newSize = self.bounds.size;
 	if( newSize.width != oldSize.width || newSize.height != oldSize.height ) {
@@ -219,19 +218,19 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		else if( strcmp(specialPathName, "tmp") == 0 ) {
 			searchPath = NSTemporaryDirectory();
 		}
-		
+
 		if( searchPath ) {
 			return [searchPath stringByAppendingPathComponent:[path substringFromIndex:strlen(specialPathName)+3]];
 		}
 	}
-	
+
 	return [NSString stringWithFormat:@"%@/%@%@", NSBundle.mainBundle.resourcePath, appFolder, path];
 }
 
 - (void)loadScriptAtPath:(NSString *)path {
 	NSString *script = [NSString stringWithContentsOfFile:[self pathForResource:path]
 		encoding:NSUTF8StringEncoding error:NULL];
-	
+
 	[self evaluateScript:script sourceURL:path];
 }
 
@@ -247,20 +246,20 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		);
 		return NULL;
 	}
-    
+
 	JSStringRef scriptJS = JSStringCreateWithCFString((CFStringRef)script);
 	JSStringRef sourceURLJS = NULL;
-    
+
 	if( [sourceURL length] > 0 ) {
 		sourceURLJS = JSStringCreateWithCFString((CFStringRef)sourceURL);
 	}
-    
+
 	JSValueRef exception = NULL;
 	JSValueRef ret = JSEvaluateScript(jsGlobalContext, scriptJS, NULL, sourceURLJS, 0, &exception );
 	[self logException:exception ctx:jsGlobalContext];
-	
+
 	JSStringRelease( scriptJS );
-    
+
 	if ( sourceURLJS ) {
 		JSStringRelease( sourceURLJS );
 	}
@@ -271,41 +270,41 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	NSString *path = [moduleId stringByAppendingString:@".js"];
 	NSString *script = [NSString stringWithContentsOfFile:[self pathForResource:path]
 		encoding:NSUTF8StringEncoding error:NULL];
-	
+
 	if( !script ) {
 		NSLog(@"Error: Can't Find Module %@", moduleId );
 		return NULL;
 	}
-	
+
 	NSLog(@"Loading Module: %@", moduleId );
-	
+
 	JSStringRef scriptJS = JSStringCreateWithCFString((CFStringRef)script);
 	JSStringRef pathJS = JSStringCreateWithCFString((CFStringRef)path);
 	JSStringRef parameterNames[] = {
 		JSStringCreateWithUTF8CString("module"),
 		JSStringCreateWithUTF8CString("exports"),
 	};
-	
+
 	JSValueRef exception = NULL;
 	JSObjectRef func = JSObjectMakeFunction(jsGlobalContext, NULL, 2, parameterNames, scriptJS, pathJS, 0, &exception );
-	
+
 	JSStringRelease( scriptJS );
 	JSStringRelease( pathJS );
 	JSStringRelease(parameterNames[0]);
 	JSStringRelease(parameterNames[1]);
-	
+
 	if( exception ) {
 		[self logException:exception ctx:jsGlobalContext];
 		return NULL;
 	}
-	
+
 	JSValueRef params[] = { module, exports };
 	return [self invokeCallback:func thisObject:NULL argc:2 argv:params];
 }
 
 - (JSValueRef)invokeCallback:(JSObjectRef)callback thisObject:(JSObjectRef)thisObject argc:(size_t)argc argv:(const JSValueRef [])argv {
 	if( !jsGlobalContext ) { return NULL; } // May already have been released
-	
+
 	JSValueRef exception = NULL;
 	JSValueRef result = JSObjectCallAsFunction(jsGlobalContext, callback, thisObject, argc, argv, &exception );
 	[self logException:exception ctx:jsGlobalContext];
@@ -314,16 +313,16 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)logException:(JSValueRef)exception ctx:(JSContextRef)ctxp {
 	if( !exception ) return;
-	
+
 	JSStringRef jsLinePropertyName = JSStringCreateWithUTF8CString("line");
 	JSStringRef jsFilePropertyName = JSStringCreateWithUTF8CString("sourceURL");
     JSStringRef jsStackPropertyName = JSStringCreateWithUTF8CString("stack");
-	
+
 	JSObjectRef exObject = JSValueToObject( ctxp, exception, NULL );
 	JSValueRef line = JSObjectGetProperty( ctxp, exObject, jsLinePropertyName, NULL );
 	JSValueRef file = JSObjectGetProperty( ctxp, exObject, jsFilePropertyName, NULL );
     JSValueRef stack = JSObjectGetProperty( ctxp, exObject, jsStackPropertyName, NULL );
-	
+
 	NSLog(
 		@"%@ at line %@ in %@, stack: %@",
 		JSValueToNSString( ctxp, exception ),
@@ -331,7 +330,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		JSValueToNSString( ctxp, file ),
           JSValueToNSString( ctxp, stack )
 	);
-	
+
 	JSStringRelease( jsLinePropertyName );
 	JSStringRelease( jsFilePropertyName );
     JSStringRelease( jsStackPropertyName );
@@ -339,7 +338,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (JSValueRef)jsValueForPath:(NSString *)objectPath {
 	JSValueRef obj = JSContextGetGlobalObject( jsGlobalContext  );
-	
+
 	NSArray *pathComponents = [objectPath componentsSeparatedByString:@"."];
 	for( NSString *p in pathComponents) {
 		JSStringRef name = JSStringCreateWithCFString((CFStringRef)p);
@@ -354,7 +353,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
             NSLog(@"Undefined value component \"%@\" in \"%@\"", p, objectPath);
             return NULL;
         }
-		
+
 		if( !obj ) { break; }
 	}
 	return obj;
@@ -366,14 +365,14 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)run:(CADisplayLink *)sender {
 	if(isPaused) { return; }
-	
+
 	// We rather poll for device motion updates at the beginning of each frame instead of
 	// spamming out updates that will never be seen.
 	[deviceMotionDelegate triggerDeviceMotionEvents];
-	
+
 	// Check all timers
 	[timers update];
-	
+
 	// Redraw the canvas
 	self.currentRenderingContext = screenRenderingContext;
 	[screenRenderingContext present];
@@ -382,7 +381,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)pause {
 	if( isPaused ) { return; }
-	
+
 	[windowEventsDelegate pause];
 	[displayLink removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
 	[screenRenderingContext finish];
@@ -391,7 +390,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)resume {
 	if( !isPaused ) { return; }
-	
+
 	[windowEventsDelegate resume];
 	[EAGLContext setCurrentContext:glCurrentContext];
 	[displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
@@ -400,7 +399,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)clearCaches {
 	JSGarbageCollect(jsGlobalContext);
-	
+
 	// Release all texture storages that haven't been bound in
 	// the last 5 seconds
 	[textureCache releaseStoragesOlderThan:5];
@@ -410,14 +409,14 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	if( renderingContext != currentRenderingContext ) {
 		[currentRenderingContext flushBuffers];
 		[currentRenderingContext release];
-		
+
 		// Switch GL Context if different
 		if( renderingContext && renderingContext.glContext != glCurrentContext ) {
 			glFlush();
 			glCurrentContext = renderingContext.glContext;
 			[EAGLContext setCurrentContext:glCurrentContext];
 		}
-		
+
 		[renderingContext prepare];
 		currentRenderingContext = [renderingContext retain];
 	}
@@ -434,7 +433,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
 	NSMutableSet *remaining = [event.allTouches mutableCopy];
 	[remaining minusSet:touches];
-	
+
 	[touchDelegate triggerEvent:@"touchend" all:event.allTouches changed:touches remaining:remaining];
 	[remaining release];
 }
@@ -456,22 +455,22 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	if( argc != 2 || !JSValueIsObject(ctxp, argv[0]) || !JSValueIsNumber(jsGlobalContext, argv[1]) ) {
 		return NULL;
 	}
-	
+
 	JSObjectRef func = JSValueToObject(ctxp, argv[0], NULL);
 	float interval = JSValueToNumberFast(ctxp, argv[1])/1000;
-	
+
 	// Make sure short intervals (< 18ms) run each frame
 	if( interval < 0.018 ) {
 		interval = 0;
 	}
-	
+
 	int timerId = [timers scheduleCallback:func interval:interval repeat:repeat];
 	return JSValueMakeNumber( ctxp, timerId );
 }
 
 - (JSValueRef)deleteTimer:(JSContextRef)ctxp argc:(size_t)argc argv:(const JSValueRef [])argv {
 	if( argc != 1 || !JSValueIsNumber(ctxp, argv[0]) ) return NULL;
-	
+
 	[timers cancelId:JSValueToNumberFast(ctxp, argv[0])];
 	return NULL;
 }
@@ -483,7 +482,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 		blockFunctionClassDef.finalize = EJBlockFunctionFinalize;
 		jsBlockFunctionClass = JSClassCreate(&blockFunctionClassDef);
 	}
-	
+
 	return JSObjectMake( jsGlobalContext, jsBlockFunctionClass, (void *)Block_copy(block) );
 }
 

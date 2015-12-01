@@ -17,9 +17,9 @@
 #define EJ_BIND_CONST_GL(NAME) EJ_BIND_CONST(NAME, GL_##NAME)
 
 typedef struct {
-	EJTexture *texture;
+	__unsafe_unretained EJTexture *texture;
 	JSObjectRef jsTexture;
-	EJTexture *cubeMap;
+	__unsafe_unretained EJTexture *cubeMap;
 	JSObjectRef jsCubeMap;
 } EJCanvasContextTextureUnit;
 

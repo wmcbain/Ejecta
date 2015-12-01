@@ -68,9 +68,9 @@ typedef struct {
 	
 	EJCompositeOperation globalCompositeOperation;
 	EJColorRGBA fillColor;
-	NSObject<EJFillable> *fillObject;
+	__unsafe_unretained NSObject<EJFillable> *fillObject;
 	EJColorRGBA strokeColor;
-	NSObject<EJFillable> *strokeObject;
+	__unsafe_unretained NSObject<EJFillable> *strokeObject;
 	float globalAlpha;
 	
 	float lineWidth;
@@ -80,9 +80,9 @@ typedef struct {
 	
 	EJTextAlign textAlign;
 	EJTextBaseline textBaseline;
-	EJFontDescriptor *font;
+	__unsafe_unretained EJFontDescriptor *font;
 	
-	EJPath *clipPath;	
+	__unsafe_unretained EJPath *clipPath;
 } EJCanvasState;
 
 static inline EJColorRGBA EJCanvasBlendColor( EJCanvasState *state, EJColorRGBA color ) {
