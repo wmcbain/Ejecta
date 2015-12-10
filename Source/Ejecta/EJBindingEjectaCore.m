@@ -21,18 +21,18 @@
 - (NSString*)deviceName {
 	struct utsname systemInfo;
 	uname( &systemInfo );
-	
+
 	NSString *machine = [NSString stringWithCString:systemInfo.machine encoding:NSUTF8StringEncoding];
-	
+
 	if( [machine isEqualToString: @"i386"] ||
 	    [machine isEqualToString: @"x86_64"] ) {
-		
+
 		NSString *deviceType = ( UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad )
 			? @"iPad"
 			: @"iPhone";
-		
+
 		return [NSString stringWithFormat: @"%@ Simulator", deviceType];
-		
+
 	} else {
 		return machine;
 	}
@@ -46,17 +46,17 @@
 
 EJ_BIND_FUNCTION(log, ctx, argc, argv ) {
 	if( argc < 1 ) return NULL;
-    
+
 	NSLog( @"JS %@", JSValueToNSString(ctx, argv[0]) );
 	return NULL;
 }
 
 EJ_BIND_FUNCTION(load, ctx, argc, argv ) {
 	if( argc < 1 ) return NULL;
-	
+
 	NSObject<UIApplicationDelegate> *app = [[UIApplication sharedApplication] delegate];
-    SEL selector = NSSelectorFromString(@"loadViewControllerWithScriptAtPath:");
-    
+  SEL selector = NSSelectorFromString(@"loadViewControllerWithScriptAtPath:");
+
 	if( [app respondsToSelector:selector] ) {
 		// Queue up the loading till the next frame; the script view may be in the
 		// midst of a timer update
@@ -66,7 +66,7 @@ EJ_BIND_FUNCTION(load, ctx, argc, argv ) {
 	else {
 		NSLog(@"Error: Current UIApplicationDelegate does not support loadViewControllerWithScriptAtPath.");
 	}
-	
+
 	return NULL;
 }
 
@@ -88,18 +88,18 @@ EJ_BIND_FUNCTION(loadFont, ctx, argc, argv ) {
 
 EJ_BIND_FUNCTION(requireModule, ctx, argc, argv ) {
 	if( argc < 3 ) { return NULL; }
-	
+
 	return [scriptView loadModuleWithId:JSValueToNSString(ctx, argv[0]) module:argv[1] exports:argv[2]];
 }
 
 EJ_BIND_FUNCTION(openURL, ctx, argc, argv ) {
 	if( argc < 1 ) { return NULL; }
-	
+
 	NSString *url = JSValueToNSString( ctx, argv[0] );
 	if( argc == 2 ) {
 		[urlToOpen release];
 		urlToOpen = [url retain];
-		
+
 		NSString *confirm = JSValueToNSString( ctx, argv[1] );
 		UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Open Browser?" message:confirm delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"Ok", nil];
 		alert.tag = kEJCoreAlertViewOpenURL;
@@ -107,21 +107,21 @@ EJ_BIND_FUNCTION(openURL, ctx, argc, argv ) {
 		[alert release];
 	}
 	else {
-		[[UIApplication sharedApplication] openURL:[NSURL URLWithString: url]];
+		[UIApplication.sharedApplication openURL:[NSURL URLWithString: url]];
 	}
 	return NULL;
 }
 
 EJ_BIND_FUNCTION(getText, ctx, argc, argv) {
 	if( argc < 3 ) { return NULL; }
-	
+
 	NSString *title = JSValueToNSString(ctx, argv[0]);
 	NSString *message = JSValueToNSString(ctx, argv[1]);
-	
+
 	JSValueUnprotectSafe(ctx, getTextCallback);
 	getTextCallback = JSValueToObject(ctx, argv[2], NULL);
 	JSValueProtect(ctx, getTextCallback);
-	
+
 	UIAlertView *alert = [[UIAlertView alloc] initWithTitle:title message:message delegate:self
 		cancelButtonTitle:@"Cancel" otherButtonTitles:@"Ok", nil];
 	alert.alertViewStyle = UIAlertViewStylePlainTextInput;
@@ -134,12 +134,12 @@ EJ_BIND_FUNCTION(getText, ctx, argc, argv) {
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)index {
 	if( alertView.tag == kEJCoreAlertViewOpenURL ) {
 		if( index == 1 ) {
-			[[UIApplication sharedApplication] openURL:[NSURL URLWithString:urlToOpen]];
+			[UIApplication.sharedApplication openURL:[NSURL URLWithString:urlToOpen]];
 		}
 		[urlToOpen release];
 		urlToOpen = nil;
 	}
-	
+
 	else if( alertView.tag == kEJCoreAlertViewGetText ) {
 		NSString *text = @"";
 		if( index == 1 ) {
@@ -147,7 +147,7 @@ EJ_BIND_FUNCTION(getText, ctx, argc, argv) {
 		}
 		JSValueRef params[] = { NSStringToJSValue(scriptView.jsGlobalContext, text) };
 		[scriptView invokeCallback:getTextCallback thisObject:NULL argc:1 argv:params];
-		
+
 		JSValueUnprotectSafe(scriptView.jsGlobalContext, getTextCallback);
 		getTextCallback = NULL;
 	}
@@ -187,7 +187,7 @@ EJ_BIND_GET(screenHeight, ctx ) {
 	return JSValueMakeNumber( ctx, scriptView.bounds.size.height );
 }
 
-EJ_BIND_GET(userAgent, ctx ) {	
+EJ_BIND_GET(userAgent, ctx ) {
 	return NSStringToJSValue(
 		ctx,
 		[NSString stringWithFormat: @"Ejecta/%@ (%@; OS %@)", EJECTA_VERSION, [self deviceName], [[UIDevice currentDevice] systemVersion]]
@@ -226,7 +226,7 @@ EJ_BIND_GET(onLine, ctx) {
 	bzero(&zeroAddress, sizeof(zeroAddress));
 	zeroAddress.sin_len = sizeof(zeroAddress);
 	zeroAddress.sin_family = AF_INET;
-	
+
 	SCNetworkReachabilityRef reachability = SCNetworkReachabilityCreateWithAddress(
 		kCFAllocatorDefault,
 		(const struct sockaddr*)&zeroAddress
@@ -234,9 +234,9 @@ EJ_BIND_GET(onLine, ctx) {
 	if( reachability ) {
 		SCNetworkReachabilityFlags flags;
 		SCNetworkReachabilityGetFlags(reachability, &flags);
-		
+
 		CFRelease(reachability);
-		
+
 		if(
 			// Reachable and no connection required
 			(
@@ -253,16 +253,16 @@ EJ_BIND_GET(onLine, ctx) {
 			return JSValueMakeBoolean(ctx, true);
 		}
 	}
-	
+
 	return JSValueMakeBoolean(ctx, false);
 }
 
 EJ_BIND_GET(allowSleepMode, ctx) {
-	return JSValueMakeBoolean(ctx, ![UIApplication sharedApplication].idleTimerDisabled);
+	return JSValueMakeBoolean(ctx, !UIApplication.sharedApplication.idleTimerDisabled);
 }
 
 EJ_BIND_SET(allowSleepMode, ctx, value) {
-	[UIApplication sharedApplication].idleTimerDisabled = !JSValueToBoolean(ctx, value);
+	UIApplication.sharedApplication.idleTimerDisabled = !JSValueToBoolean(ctx, value);
 }
 
 EJ_BIND_GET(otherAudioPlaying, ctx) {
@@ -282,7 +282,7 @@ EJ_BIND_ENUM(audioSession, self.audioSession,
 - (void)setAudioSession:(EJCoreAudioSession)session {
 	audioSession = session;
 	AVAudioSession *instance = AVAudioSession.sharedInstance;
-	
+
 	switch(audioSession) {
 		case kEJCoreAudioSessionAmbient:
 			[instance setCategory:AVAudioSessionCategoryAmbient error:NULL];

@@ -67,7 +67,6 @@
 		B668FCEE1821C08500D4F629 /* EJFontCache.m in Sources */ = {isa = PBXBuildFile; fileRef = B668FCED1821C08500D4F629 /* EJFontCache.m */; };
 		B66F1E811476B6B90090D208 /* libicucore.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = B66F1E771476B3AC0090D208 /* libicucore.dylib */; };
 		B68037011682A58300833604 /* EJConvertWebGL.m in Sources */ = {isa = PBXBuildFile; fileRef = B68037001682A58200833604 /* EJConvertWebGL.m */; };
-		B68C5B95132E6CD60015092E /* App in Resources */ = {isa = PBXBuildFile; fileRef = B68C5AEF132E6CD60015092E /* App */; };
 		B699669816CC4E6E006B9456 /* EJTextureStorage.m in Sources */ = {isa = PBXBuildFile; fileRef = B699669716CC4E6D006B9456 /* EJTextureStorage.m */; };
 		B699669B16CC55F5006B9456 /* EJSharedTextureCache.m in Sources */ = {isa = PBXBuildFile; fileRef = B699669A16CC55F4006B9456 /* EJSharedTextureCache.m */; };
 		B699669E16CC579E006B9456 /* EJSharedOpenGLContext.m in Sources */ = {isa = PBXBuildFile; fileRef = B699669D16CC579B006B9456 /* EJSharedOpenGLContext.m */; };
@@ -662,7 +661,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B65A25C119618E5C00CC1744 /* MainWindow.xib in Resources */,
-				B68C5B95132E6CD60015092E /* App in Resources */,
 				B637065E1A27BD5600F42B90 /* LaunchScreen.xib in Resources */,
 				B64CE695166682B10087CF94 /* Icon-72.png in Resources */,
 				B64CE696166682B10087CF94 /* Icon-72@2x.png in Resources */,

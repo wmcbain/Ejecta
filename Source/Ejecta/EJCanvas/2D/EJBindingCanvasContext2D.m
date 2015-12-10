@@ -14,10 +14,9 @@
 
 @implementation EJBindingCanvasContext2D
 
-- (id)initWithCanvas:(JSObjectRef)canvas renderingContext:(EJCanvasContext2D *)renderingContextp {
+- (id)initWithRenderingContext:(EJCanvasContext2D *)renderingContextp {
 	if( self = [super initWithContext:NULL argc:0 argv:NULL] ) {
 		renderingContext = [renderingContextp retain];
-		jsCanvas = canvas;
 	}
 	return self;
 }
@@ -25,10 +24,6 @@
 - (void)dealloc {
 	[renderingContext release];
 	[super dealloc];
-}
-
-EJ_BIND_GET(canvas, ctx) {
-	return jsCanvas;
 }
 
 EJ_BIND_ENUM(globalCompositeOperation, renderingContext.globalCompositeOperation,
@@ -180,23 +175,72 @@ EJ_BIND_GET(font, ctx) {
 }
 
 EJ_BIND_SET(font, ctx, value) {
-	char string[64]; // Long font names are long
 	JSStringRef jsString = JSValueToStringCopy( ctx, value, NULL );
-	JSStringGetUTF8CString(jsString, string, 64);
-	
+    size_t maxStringSize = JSStringGetMaximumUTF8CStringSize(jsString);
+    char string[maxStringSize+1];
+	JSStringGetUTF8CString(jsString, string, maxStringSize);
+    string[maxStringSize] = 0;
+
+    // iterate over a potentially comma-delimited list
+    // http://www.w3.org/TR/2dcontext/#dom-context-2d-font the spec indicates that
+    // 'italic 12px Unknown Font, sans-serif' should be a valid value
+    // include typeface names delimited by commas, and with the size optional
+    //
+    // full support of fallback font options when particular characters are missing
+    // from the prefered font will require more substantial changes to EJCanvasContext2D
+    const float defaultSize = renderingContext.font.size; // default to current
+    EJFontDescriptor *font = nil;
+    float size = defaultSize;
+    char name[64];
+    char ptx;
+    const char *start = string;
+    while(*start != '\0'){
 	// Yeah, oldschool!
-	float size = 0;
-	char name[64];
-	char ptx;
-	char *start = string;
-	while(*start != '\0' && !isdigit(*start)){ start++; } // skip to the first digit
-	sscanf( start, "%fp%1[tx]%*[\"' ]%63[^\"']", &size, &ptx, name); // matches: 10.5p[tx] 'some font'
-	
-	if( ptx == 't' ) { // pt or px?
-		size = ceilf(size*4.0/3.0);
-	}
-	
-	EJFontDescriptor *font = [EJFontDescriptor descriptorWithName:@(name) size:size];
+        size = defaultSize;
+        while(*start != '\0' && isspace(*start)){ start++; } // skip to the first non-whitespace
+        const char * curr = start;
+        bool startsWithSize = isdigit(*start);
+        bool inQuotes = false;
+        bool inSizeInfo = startsWithSize;
+        char quoteChar = 0;
+        size_t fontNameLength = 0;
+        if(startsWithSize){
+            size = strtof(start, (char**)&curr);
+        }
+        while (*curr != '\0') {
+            if(inQuotes){
+                if(*curr == quoteChar){
+                    inQuotes = false;
+                }else{
+                    name[fontNameLength++] = *curr;
+                }
+            }else if(inSizeInfo){
+                if(isspace(*curr)){
+                    inSizeInfo = false; // end of size
+                }else if(*curr=='p'){
+                    ptx = *(curr+1);
+                }
+            }else{
+                if(*curr == '\'' || *curr =='\"'){
+                    quoteChar = *curr;
+                    inQuotes = true;
+                }else if(*curr==','){
+                    break;
+                }else if(!isspace(*curr)){
+                    // no spaces outside quotes
+                    name[fontNameLength++] = *curr;
+                }
+            }
+            curr++;
+        };
+        name[fontNameLength] = '\0';
+        font = [EJFontDescriptor descriptorWithName:@(name) size:size];
+        if(nil!=font){
+            break;
+        }
+        start = curr;
+        if(*start != '\0') start++;
+    }
 	if( font ) {
 		renderingContext.font = font;
 	}
@@ -204,7 +248,6 @@ EJ_BIND_SET(font, ctx, value) {
 		// Font name not found, but we have a size? Use the current font and just change the size
 		renderingContext.font = [EJFontDescriptor descriptorWithName:renderingContext.font.name size:size];
 	}
-	
 	JSStringRelease(jsString);
 }
 
