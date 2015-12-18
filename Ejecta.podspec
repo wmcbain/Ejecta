@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name      = 'Ejecta'
-  s.version   = '1.6.2'
+  s.version   = '2.0.0'
   s.license   = { :type => "MIT", :text => "Copyright (c) 2013 Dominic Szablewski."}
   s.homepage  = 'http://impactjs.com/ejecta'
   s.summary   = 'A Fast, Open Source JavaScript, Canvas & Audio Implementation for iOS.'
