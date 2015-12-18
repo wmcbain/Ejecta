@@ -105,8 +105,19 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
     // Create the OpenGL context for Canvas2D
     glCurrentContext = openGLContext.glContext2D;
     [EAGLContext setCurrentContext:glCurrentContext];
+<<<<<<< 9354d64ae70c86cfa75fe3fe2e22037b17bc493c
     
     [self loadScriptAtPath:EJECTA_BOOT_JS];
+=======
+
+    //Load the Ejecta.js from this bundle, rather than the main bundle
+    NSString *path = [NSString stringWithFormat:@"%@/%@", [[NSBundle bundleForClass:[EJJavaScriptView class]] resourcePath], @"Ejecta.js"];;
+    
+    NSString *script = [NSString stringWithContentsOfFile:path
+                                                 encoding:NSUTF8StringEncoding error:NULL];
+    
+    [self evaluateScript:script sourceURL:path];
+>>>>>>> Use amended root version of [EJJavaScriptView setupWithAppFolder:]
 }
 
 - (void)dealloc {
