@@ -1,4 +1,6 @@
 #import "EJCanvasContextWebGLScreen.h"
+#import "EJJavaScriptView.h"
+#import "EJTexture.h"
 
 @implementation EJCanvasContextWebGLScreen
 @synthesize style;
@@ -46,23 +48,26 @@
 - (void)resizeToWidth:(short)newWidth height:(short)newHeight {
 	[self flushBuffers];
 	
-	bufferWidth = width = newWidth;
-	bufferHeight = height = newHeight;
+	width = newWidth;
+	height = newHeight;
 	
 	CGRect frame = self.frame;
-	float contentScale = bufferWidth / frame.size.width;
+	float contentScale = MAX(width/frame.size.width, height/frame.size.height);
 	
 	NSLog(
 		@"Creating ScreenCanvas (WebGL): "
 			@"size: %dx%d, "
-			@"style: %.0fx%.0f",
+			@"style: %.0fx%.0f, "
+			@"antialias: %@, preserveDrawingBuffer: %@",
 		width, height, 
-		frame.size.width, frame.size.height
+		frame.size.width, frame.size.height,
+		(msaaEnabled ? [NSString stringWithFormat:@"yes (%d samples)", msaaSamples] : @"no"),
+		(preserveDrawingBuffer ? @"yes" : @"no")
 	);
 	
 	if( !glview ) {
 		// Create the OpenGL UIView with final screen size and content scaling (retina)
-		glview = [[EAGLView alloc] initWithFrame:frame contentScale:contentScale retainedBacking:YES];
+		glview = [[EAGLView alloc] initWithFrame:frame contentScale:contentScale retainedBacking:preserveDrawingBuffer];
 		
 		// Append the OpenGL view to Ejecta's main view
 		[scriptView addSubview:glview];
@@ -86,19 +91,25 @@
 	[glContext renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer *)glview.layer];
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, viewRenderBuffer);
 	
-	// Set up the depth and stencil buffer
-	glBindRenderbuffer(GL_RENDERBUFFER, depthStencilBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, bufferWidth, bufferHeight);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilBuffer);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilBuffer);
+	// The renderbuffer may be bigger than the requested size; make sure to store the real
+	// renderbuffer size.
+	GLint rbWidth, rbHeight;
+	glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &rbWidth);
+	glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &rbHeight);
+	bufferWidth = rbWidth;
+	bufferHeight = rbHeight;
+	
+
+	[self resizeAuxiliaryBuffers];
 	
 	// Clear
 	glViewport(0, 0, width, height);
 	[self clear];
 	
+	
 	// Reset to the previously bound frame and renderbuffers
-	glBindFramebuffer(GL_FRAMEBUFFER, previousFrameBuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, previousRenderBuffer);
+	[self bindFramebuffer:previousFrameBuffer toTarget:GL_FRAMEBUFFER];
+	[self bindRenderbuffer:previousRenderBuffer toTarget:GL_RENDERBUFFER];
 }
 
 - (void)finish {
@@ -108,9 +119,41 @@
 - (void)present {
 	if( !needsPresenting ) { return; }
 	
-	[glContext presentRenderbuffer:GL_RENDERBUFFER];
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	if( msaaEnabled ) {
+		//Bind the MSAA and View frameBuffers and resolve
+		glBindFramebuffer(GL_READ_FRAMEBUFFER_APPLE, msaaFrameBuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER_APPLE, viewFrameBuffer);
+		glResolveMultisampleFramebufferAPPLE();
+		
+		glBindRenderbuffer(GL_RENDERBUFFER, viewRenderBuffer);
+		[glContext presentRenderbuffer:GL_RENDERBUFFER];
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFrameBuffer);
+	}
+	else {
+		[glContext presentRenderbuffer:GL_RENDERBUFFER];
+	}
+	
+	if( preserveDrawingBuffer ) {
+		glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	}
+	else {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	}
 	needsPresenting = NO;
+}
+
+- (EJTexture *)texture {
+	EJCanvasContext *previousContext = scriptView.currentRenderingContext;
+	scriptView.currentRenderingContext = self;
+
+	NSMutableData *pixels = [NSMutableData dataWithLength:bufferWidth * bufferHeight * 4 * sizeof(GLubyte)];
+	glReadPixels(0, 0, bufferWidth, bufferHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.mutableBytes);
+	
+	[EJTexture flipPixelsY:pixels.mutableBytes bytesPerRow:bufferWidth * 4 rows:bufferHeight];
+	EJTexture *texture = [[[EJTexture alloc] initWithWidth:bufferWidth height:bufferHeight pixels:pixels] autorelease];
+
+	scriptView.currentRenderingContext = previousContext;
+	return texture;
 }
 
 @end

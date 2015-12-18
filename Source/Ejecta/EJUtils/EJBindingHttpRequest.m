@@ -1,13 +1,13 @@
 #import "EJBindingHttpRequest.h"
-#import <JavaScriptCore/JSTypedArray.h>
+#import "EJConvertTypedArray.h"
 #import "EJJavaScriptView.h"
 
 @implementation EJBindingHttpRequest
 
 - (id)initWithContext:(JSContextRef)ctxp argc:(size_t)argc argv:(const JSValueRef [])argv {
 	if( self = [super initWithContext:ctxp argc:argc argv:argv] ) {
-		requestHeaders = [[NSMutableDictionary alloc] init];
-		defaultEncoding = NSASCIIStringEncoding;
+		requestHeaders = [NSMutableDictionary new];
+		defaultEncoding = NSUTF8StringEncoding;
 	}
 	return self;
 }
@@ -26,8 +26,8 @@
 }
 
 - (void)clearConnection {
-	[connection cancel];
-	[connection release]; connection = NULL;
+	[session invalidateAndCancel];
+	[session release]; session = NULL;
 	[responseBody release]; responseBody = NULL;
 	[response release]; response = NULL;
 }
@@ -43,8 +43,8 @@
 	if( !response ) {
 		return 0;
 	}
-	else if( [response isKindOfClass:[NSHTTPURLResponse class]] ) {
-		return ((NSHTTPURLResponse *)response).statusCode;;
+	else if( [response isKindOfClass:NSHTTPURLResponse.class] ) {
+		return ((NSHTTPURLResponse *)response).statusCode;
 	}
 	else {
 		return 200; // assume everything went well for non-HTTP resources
@@ -65,39 +65,52 @@
 	return [[[NSString alloc] initWithData:responseBody encoding:encoding] autorelease];
 }
 
-- (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+- (void)URLSession:(NSURLSession * _Nonnull)session
+	didReceiveChallenge:(NSURLAuthenticationChallenge * _Nonnull)challenge
+	completionHandler:(void (^ _Nonnull)(NSURLSessionAuthChallengeDisposition disposition,
+	NSURLCredential * _Nullable credential))completionHandler
+{
 	if( user && password && [challenge previousFailureCount] == 0 ) {
 		NSURLCredential *credentials = [NSURLCredential
 			credentialWithUser:user
 			password:password
 			persistence:NSURLCredentialPersistenceNone];
-		[[challenge sender] useCredential:credentials forAuthenticationChallenge:challenge];
+		completionHandler(NSURLSessionAuthChallengeUseCredential, credentials);
 	}
 	else if( [challenge previousFailureCount] == 0 ) {
-		[[challenge sender] continueWithoutCredentialForAuthenticationChallenge:challenge];
+		completionHandler(NSURLSessionAuthChallengeUseCredential, nil);
 	}
 	else {
-		[[challenge sender] cancelAuthenticationChallenge:challenge];
+		completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
 		state = kEJHttpRequestStateDone;
 		[self triggerEvent:@"abort"];
 		NSLog(@"XHR: Aborting Request %@ - wrong credentials", url);
 	}
 }
 
-- (void)connectionDidFinishLoading:(NSURLConnection *)connectionp {
+- (void)URLSession:(NSURLSession *)sessionp task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+	if( error ) {
+		[self didFailWithError:error];
+		return;
+	}
+	
+	if( task.response ) {
+		[self didReceiveResponse:task.response];
+	}
+	
 	state = kEJHttpRequestStateDone;
 	
-	[connection release]; connection = NULL;
+	[session release]; session = NULL;
 	[self triggerEvent:@"load"];
 	[self triggerEvent:@"loadend"];
 	[self triggerEvent:@"readystatechange"];
 	JSValueUnprotectSafe(scriptView.jsGlobalContext, jsObject);
 }
 
-- (void)connection:(NSURLConnection *)connectionp didFailWithError:(NSError *)error {
+- (void)didFailWithError:(NSError *)error {
 	state = kEJHttpRequestStateDone;
 	
-	[connection release]; connection = NULL;
+	[session release]; session = NULL;
 	if( error.code == kCFURLErrorTimedOut ) {
 		[self triggerEvent:@"timeout"];
 	}
@@ -109,7 +122,7 @@
 	JSValueUnprotectSafe(scriptView.jsGlobalContext, jsObject);
 }
 
-- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)responsep {
+- (void)didReceiveResponse:(NSURLResponse *)responsep {
 	state = kEJHttpRequestStateHeadersReceived;
 	
 	[response release];
@@ -125,7 +138,10 @@
 	[self triggerEvent:@"readystatechange"];
 }
 
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
+- (void)URLSession:(NSURLSession * _Nonnull)session
+	dataTask:(NSURLSessionDataTask * _Nonnull)dataTask
+	didReceiveData:(NSData * _Nonnull)data
+{
 	state = kEJHttpRequestStateLoading;
 	
 	if( !responseBody ) {
@@ -176,7 +192,7 @@ EJ_BIND_FUNCTION(setRequestHeader, ctx, argc, argv) {
 }
 
 EJ_BIND_FUNCTION(abort, ctx, argc, argv) {
-	if( connection ) {
+	if( session ) {
 		[self clearConnection];
 		[self triggerEvent:@"abort"];
 	}
@@ -187,7 +203,7 @@ EJ_BIND_FUNCTION(getAllResponseHeaders, ctx, argc, argv) {
 	if( !response ) {
 		return NULL;
 	}
-	if( ![response isKindOfClass:[NSHTTPURLResponse class]] ) {
+	if( ![response isKindOfClass:NSHTTPURLResponse.class] ) {
 		NSStringToJSValue(ctx, @"");
 	}
 	
@@ -201,7 +217,7 @@ EJ_BIND_FUNCTION(getAllResponseHeaders, ctx, argc, argv) {
 }
 
 EJ_BIND_FUNCTION(getResponseHeader, ctx, argc, argv) {
-	if( argc < 1 || !response || ![response isKindOfClass:[NSHTTPURLResponse class]] ) {
+	if( argc < 1 || !response || ![response isKindOfClass:NSHTTPURLResponse.class] ) {
 		return NULL;
 	}
 	
@@ -213,7 +229,16 @@ EJ_BIND_FUNCTION(getResponseHeader, ctx, argc, argv) {
 }
 
 EJ_BIND_FUNCTION(overrideMimeType, ctx, argc, argv) {
-	// TODO?
+	if( argc == 0 ) { return NULL; }
+	
+	NSString *mime = JSValueToNSString(ctx, argv[0]);
+	if(
+		[mime rangeOfString:@"binary"].location != NSNotFound ||
+		[mime rangeOfString:@"ascii"].location != NSNotFound ||
+		[mime rangeOfString:@"user-defined"].location != NSNotFound
+	) {
+		defaultEncoding = NSASCIIStringEncoding;
+	}
 	return NULL;
 }
 
@@ -224,9 +249,8 @@ EJ_BIND_FUNCTION(send, ctx, argc, argv) {
 
 	NSURL *requestUrl = [NSURL URLWithString:url];
 	if( !requestUrl.host ) {
-		// No host? Assume it's a local file in utf8 encoding
+		// No host? Assume it's a local file
 		requestUrl = [NSURL fileURLWithPath:[scriptView pathForResource:requestUrl.path]];
-		defaultEncoding = NSUTF8StringEncoding;
 	}
 	NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:requestUrl];
 	[request setHTTPMethod:method];
@@ -235,12 +259,18 @@ EJ_BIND_FUNCTION(send, ctx, argc, argv) {
 		[request setValue:requestHeaders[header] forHTTPHeaderField:header];
 	}
 	
-	// Set body data (Typed Array or String)
-	if( argc > 0 ) {
-		if( JSTypedArrayGetType(ctx, argv[0]) != kJSTypedArrayTypeNone ) {
-			size_t length = 0;
-			void *data = JSTypedArrayGetDataPtr(ctx, argv[0], &length);
-			request.HTTPBody = [NSData dataWithBytes:data length:length];
+	// Set body data (Typed Array or String). If request is GET or HEAD ignore body data
+	// as per the spec.
+	if(
+		argc > 0 && !JSValueIsNull(ctx, argv[0]) &&
+		![method.lowercaseString isEqualToString:@"get"] &&
+		![method.lowercaseString isEqualToString:@"head"]
+	) {
+		if(
+			JSValueIsObject(ctx, argv[0]) &&
+			JSObjectGetTypedArrayType(ctx, (JSObjectRef)argv[0]) != kJSTypedArrayTypeNone
+		) {
+			request.HTTPBody = JSObjectGetTypedArrayData(ctx, (JSObjectRef)argv[0]);
 		}
 		else {
 			NSString *requestBody = JSValueToNSString( ctx, argv[0] );
@@ -254,30 +284,19 @@ EJ_BIND_FUNCTION(send, ctx, argc, argv) {
 	}	
 	
 	NSLog(@"XHR: %@ %@", method, url);
+	
+	if( !async ) {
+		NSLog(@"XHR: Warning, synchronous requests are not supported. The request will run asynchronously.");
+	}
+	
 	[self triggerEvent:@"loadstart"];
 	
-	if( async ) {
-		state = kEJHttpRequestStateLoading;
-		connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
-	}
-	else {	
-		NSData *data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
-		responseBody = [[NSMutableData alloc] initWithData:data];
-		[response retain];
-		
-		state = kEJHttpRequestStateDone;
-		if( [response isKindOfClass:[NSHTTPURLResponse class]] ) {
-			NSHTTPURLResponse *urlResponse = (NSHTTPURLResponse *)response;
-			if( urlResponse.statusCode == 200 ) {
-				[self triggerEvent:@"load"];
-			}
-		}
-		else {
-			[self triggerEvent:@"load"];
-		}
-		[self triggerEvent:@"loadend"];
-		[self triggerEvent:@"readystatechange"];
-	}
+	state = kEJHttpRequestStateLoading;
+	NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.defaultSessionConfiguration;
+	
+	session = [[NSURLSession sessionWithConfiguration:configuration
+		delegate:self delegateQueue:NSOperationQueue.mainQueue] retain];
+	[[session dataTaskWithRequest:request] resume];
 	[request release];
 	
 	// Protect this request object from garbage collection, as its callback functions
@@ -295,9 +314,7 @@ EJ_BIND_GET(response, ctx) {
 	if( !response || !responseBody ) { return JSValueMakeNull(ctx); }
 	
 	if( type == kEJHttpRequestTypeArrayBuffer ) {
-		JSObjectRef array = JSTypedArrayMake(ctx, kJSTypedArrayTypeArrayBuffer, responseBody.length);
-		memcpy(JSTypedArrayGetDataPtr(ctx, array, NULL), responseBody.bytes, responseBody.length);
-		return array;
+		return JSObjectMakeTypedArrayWithData(ctx, kJSTypedArrayTypeArrayBuffer, responseBody);
 	}
 	
 	

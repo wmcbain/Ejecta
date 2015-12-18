@@ -13,7 +13,7 @@
 		return NULL;
 	}
 	
-	EJFontDescriptor *descriptor = [[EJFontDescriptor alloc] init];
+	EJFontDescriptor *descriptor = [EJFontDescriptor new];
 	descriptor->name = [name retain];
 	descriptor->size = size;
 	descriptor->hash = [name hash] + (size * 383); // 383 is a 'random' prime, chosen by fair dice roll
@@ -93,7 +93,6 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 		glyphPadding = EJ_FONT_GLYPH_PADDING + (fill ? 0 : lineWidth);
 		
 		ctMainFont = CTFontCreateWithName((CFStringRef)desc.name, desc.size, NULL);
-		cgMainFont = CTFontCopyGraphicsFont(ctMainFont, NULL);
 		
 		if( ctMainFont ) {
 			pointSize = desc.size;
@@ -111,7 +110,7 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 			}
 			
 			textures = [[NSMutableArray alloc] initWithCapacity:1];
-			layoutCache = [[NSCache alloc] init];
+			layoutCache = [NSCache new];
 			layoutCache.countLimit = 128;
 		}
 	}
@@ -143,7 +142,6 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 }
 
 - (void)dealloc {
-	CGFontRelease(cgMainFont);
 	CFRelease(ctMainFont);
 	
 	[textures release];
@@ -160,7 +158,7 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 	EJFontGlyphInfo *glyphInfo = &glyphInfoMap[glyph];
 	
 	CGRect bbRect;
-	CTFontGetBoundingRectsForGlyphs(font, kCTFontDefaultOrientation, &glyph, &bbRect, 1);
+	CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationDefault, &glyph, &bbRect, 1);
 	
 	// Add some padding around the glyphs
 	glyphInfo->y = floorf(bbRect.origin.y) - glyphPadding;
@@ -205,7 +203,7 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 		[texture release];	
 	}
 	else {
-		texture = [textures lastObject];
+		texture = textures.lastObject;
 	}
 	
 	glyphInfo->textureIndex = textures.count; // 0 is reserved, index starts at 1
@@ -218,17 +216,7 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 	
 	CGContextRef context = CGBitmapContextCreate(pixels.mutableBytes, pxWidth, pxHeight, 8, pxWidth, NULL, kCGImageAlphaOnly);
 	
-	CGFontRef graphicsFont = cgMainFont;
-	BOOL isMainFont = (font == ctMainFont);
-	if( !isMainFont ) {
-		// Not the main font? Create the CGFont from the given ctFont.
-		graphicsFont = CTFontCopyGraphicsFont(font, NULL);
-	}
-	
-	
-	CGContextSetFont(context, graphicsFont);
 	CGContextSetFontSize(context, pointSize);
-	
 	CGContextTranslateCTM(context, 0.0, pxHeight);
 	CGContextScaleCTM(context, contentScale, -1.0*contentScale);
 	
@@ -245,17 +233,12 @@ int EJFontGlyphLayoutSortByTextureIndex(const void *a, const void *b) {
 	
 	// Render glyph and update the texture
 	CGPoint p = CGPointMake(-glyphInfo->x, -glyphInfo->y);
-	CTFontDrawGlyphs(ctMainFont, &glyph, &p, 1, context);
+	CTFontDrawGlyphs(font, &glyph, &p, 1, context);
 	[texture updateWithPixels:pixels atX:txLineX y:txLineY width:pxWidth height:pxHeight];
 	
 	// Update texture coordinates
 	txLineX += pxWidth;
 	txLineH = MAX( txLineH, pxHeight );
-	
-	
-	if( !isMainFont ) {
-		CGFontRelease(graphicsFont);
-	}
 	
 	CGContextRelease(context);
 	
