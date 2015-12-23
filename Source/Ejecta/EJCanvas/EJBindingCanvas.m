@@ -268,5 +268,6 @@ EJ_BIND_FUNCTION(toDataURL, ctx, argc, argv) {
 }
 
 EJ_BIND_CONST(nodeName, "CANVAS");
+EJ_BIND_CONST(tagName, "CANVAS");
 
 @end
