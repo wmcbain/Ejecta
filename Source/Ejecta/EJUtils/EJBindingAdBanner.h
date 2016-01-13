@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
-#import "iAd/iAd.h"
 #import "EJBindingEventedBase.h"
+
+#import "iAd/iAd.h"
 
 
 @interface EJBindingAdBanner : EJBindingEventedBase <ADBannerViewDelegate> {

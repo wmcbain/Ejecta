@@ -1,7 +1,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import "EJCanvasContext2DScreen.h"
 #import "EJJavaScriptView.h"
-#import "EJJavaScriptView.h"
 
 @implementation EJCanvasContext2DScreen
 @synthesize style;
@@ -52,32 +51,24 @@
 	width = newWidth;
 	height = newHeight;
 	
-	
 	CGRect frame = self.frame;
-	
-	float contentScale = useRetinaResolution ? UIScreen.mainScreen.scale : 1;
-	backingStoreRatio = (frame.size.width / (float)width) * contentScale;
-	
-	bufferWidth = frame.size.width * contentScale;
-	bufferHeight = frame.size.height * contentScale;
+	float contentScale = MAX(width/frame.size.width, height/frame.size.height);
 	
 	NSLog(
 		@"Creating ScreenCanvas (2D): "
 			@"size: %dx%d, "
 			@"style: %.0fx%.0f, "
-			@"retina: %@ = %.0fx%.0f, "
-			@"msaa: %@",
+			@"antialias: %@, preserveDrawingBuffer: %@",
 		width, height, 
 		frame.size.width, frame.size.height,
-		(useRetinaResolution ? @"yes" : @"no"),
-		frame.size.width * contentScale, frame.size.height * contentScale,
-		(msaaEnabled ? [NSString stringWithFormat:@"yes (%d samples)", msaaSamples] : @"no")
+		(msaaEnabled ? [NSString stringWithFormat:@"yes (%d samples)", msaaSamples] : @"no"),
+		(preserveDrawingBuffer ? @"yes" : @"no")
 	);
 	
 	
 	if( !glview ) {
 		// Create the OpenGL UIView with final screen size and content scaling (retina)
-		glview = [[EAGLView alloc] initWithFrame:frame contentScale:contentScale retainedBacking:YES];
+		glview = [[EAGLView alloc] initWithFrame:frame contentScale:contentScale retainedBacking:preserveDrawingBuffer];
 		
 		// Append the OpenGL view to Ejecta's main view
 		[scriptView addSubview:glview];
@@ -85,12 +76,22 @@
 	else {
 		// Resize an existing view
 		glview.frame = frame;
+		glview.contentScaleFactor = contentScale;
+		glview.layer.contentsScale = contentScale;
 	}
 	
 	// Set up the renderbuffer
 	glBindRenderbuffer(GL_RENDERBUFFER, viewRenderBuffer);
 	[glContext renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer *)glview.layer];
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, viewRenderBuffer);
+	
+	// The renderbuffer may be bigger than the requested size; make sure to store the real
+	// renderbuffer size.
+	GLint rbWidth, rbHeight;
+	glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &rbWidth);
+	glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &rbHeight);
+	bufferWidth = rbWidth;
+	bufferHeight = rbHeight;
 	
 	// Flip the screen - OpenGL has the origin in the bottom left corner. We want the top left.
 	upsideDown = true;
@@ -128,12 +129,8 @@
 	// glReadPixels to succeed.
 	EJCanvasContext *previousContext = scriptView.currentRenderingContext;
 	scriptView.currentRenderingContext = self;
-
-	float w = width * backingStoreRatio;
-	float h = height * backingStoreRatio;
 	
-	EJTexture *texture = [self getImageDataScaled:1 flipped:upsideDown sx:0 sy:0 sw:w sh:h].texture;
-	texture.contentScale = backingStoreRatio;
+	EJTexture *texture = [self getImageDataSx:0 sy:0 sw:width sh:height].texture;
 	
 	scriptView.currentRenderingContext = previousContext;
 	return texture;

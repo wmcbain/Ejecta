@@ -10,7 +10,7 @@
 #import "EJSharedOpenGLContext.h"
 #import "EJNonRetainingProxy.h"
 
-#define EJECTA_VERSION @"1.5"
+#define EJECTA_VERSION @"2.0"
 #define EJECTA_DEFAULT_APP_FOLDER @"App/"
 
 #define EJECTA_BOOT_JS @"../Ejecta.js"
@@ -44,6 +44,7 @@
 	BOOL hasScreenCanvas;
 
 	BOOL isPaused;
+	BOOL exitOnMenuPress;
 	
 	EJNonRetainingProxy	*proxy;
 
@@ -51,6 +52,7 @@
 	EJClassLoader *classLoader;
 
 	EJTimerCollection *timers;
+	NSTimeInterval startTime;
 	
 	EJSharedOpenGLContext *openGLContext;
 	EJSharedTextureCache *textureCache;
@@ -78,6 +80,8 @@
 @property (nonatomic, assign) BOOL pauseOnEnterBackground;
 @property (nonatomic, assign, getter = isPaused) BOOL isPaused; // Pauses drawing/updating of the JSView
 @property (nonatomic, assign) BOOL hasScreenCanvas;
+@property (nonatomic, assign) BOOL exitOnMenuPress;
+@property (nonatomic, readonly) NSTimeInterval startTime;
 
 @property (nonatomic, readonly) JSGlobalContextRef jsGlobalContext;
 @property (nonatomic, readonly) EJSharedOpenGLContext *openGLContext;

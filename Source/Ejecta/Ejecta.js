@@ -19,7 +19,7 @@ window.innerWidth = ej.screenWidth;
 window.innerHeight = ej.screenHeight;
 
 Object.defineProperty(window, 'orientation', {
-    get: function() {return ej.orientation; }
+	get: function() {return ej.orientation; }
 });
 
 window.screen = {
@@ -46,12 +46,58 @@ window.canvas.type = 'canvas';
 
 // The console object
 window.console = {
-	_log: function(level, args) {
-		var txt = level + ':';
-		for (var i = 0; i < args.length; i++) {
-			txt += ' ' + (typeof args[i] === 'string' ? args[i] : JSON.stringify(args[i]));
+
+	// We try to be sensible of how much data we want to log here. Only the first
+	// level of an Object or Array is parsed. All subsequent levels are ommited.
+	// Arrays are shortened to the first 32 entries.
+	// To log an Object and traverse all levels, use console.logJSON()
+	_arrayMaxLength: 32,
+	
+	_toString: function(obj, deep) {
+		if( deep ) {
+			return JSON.stringify(obj);
 		}
-		ej.log( txt );
+		else if( obj instanceof Array || ArrayBuffer.isView(obj) ) {
+			var s = '',
+				length = Math.min(obj.length, window.console._arrayMaxLength),
+				omitted = obj.length - length;
+			for( var i = 0; i < length; i++ ) {
+				s += (i === 0 ? '' : ', ') + window.console._toStringFlat(obj[i]);
+			}
+			return '[' + s + (omitted ? ', ...'+omitted+' more]' : ']');
+		}
+		else {
+			var s = '',
+				first = true;
+			for( var i in obj ) {
+				s += (first ? '' : ', ') + i + ': ' + window.console._toStringFlat(obj[i]);
+				first = false;
+			}
+			return '{'+s+'}';
+		}
+	},
+	
+	_toStringFlat: function(obj) {
+		if( typeof(obj) === 'function' ) {
+			return '[Function]';
+		}
+		else if( obj instanceof Array || ArrayBuffer.isView(obj) ) {
+			return '[Array '+obj.length+']';
+		}
+		else {
+			return obj;
+		}
+	},
+	
+	_log: function(level, args, deep) {
+		var s = level + ':';
+		for (var i = 0; i < args.length; i++) {
+			var arg = args[i];
+			s += ' ' + (!arg || typeof(arg) !== 'object'
+				? arg
+				: window.console._toString(arg, deep));
+		}
+		ej.log( s );
 	},
 	
 	assert: function() {
@@ -63,10 +109,11 @@ window.console = {
 	}
 };
 window.console.debug = function () { window.console._log('DEBUG', arguments); };
-window.console.info =  function () { window.console._log('INFO', arguments); };
-window.console.warn =  function () { window.console._log('WARN', arguments); };
+window.console.info = function () { window.console._log('INFO', arguments); };
+window.console.warn = function () { window.console._log('WARN', arguments); };
 window.console.error = function () { window.console._log('ERROR', arguments); };
-window.console.log =   function () { window.console._log('LOG', arguments); };
+window.console.log = function () { window.console._log('LOG', arguments); };
+window.console.logJSON = function () { window.console._log('JSON', arguments, true); };
 
 var consoleTimers = {};
 console.time = function(name) {
@@ -139,7 +186,13 @@ window.Event = function (type) {
 	this.stopPropagation = function () {};
 };
 
-window.location = { href: 'index' };
+window.location = { href: 'index.js' };
+window.location.reload = function() {
+	ejecta.load('index.js');
+}
+
+window.open = function(url) { ej.openURL(url); };
+
 
 // Set up a "fake" HTMLElement
 HTMLElement = function( tagName ){
@@ -331,6 +384,7 @@ var eventInit = document._eventInitializers;
 
 // Set touch event properties for feature detection
 window.ontouchstart = window.ontouchend = window.ontouchmove = null;
+document.ontouchstart = document.ontouchend = document.ontouchmove = null;
 
 // Setting up the 'event' object for touch events in native code is quite
 // a bit of work, so instead we do it here in JavaScript and have the native
@@ -489,5 +543,26 @@ eventInit.visibilitychange = eventInit.pagehide = eventInit.pageshow = eventInit
 		document.dispatchEvent(resizeEvent);
 	};
 };
+
+
+// Gamepad API
+
+var gamepadProvider = null;
+var initGamepadProvider = function() {
+	if( gamepadProvider ) { return; }
+	gamepadProvider = new Ejecta.GamepadProvider();
+	
+	gamepadProvider.ongamepadconnected = gamepadProvider.ongamepaddisconnected = function(ev) {
+		document.dispatchEvent(ev);
+	};
+};
+
+navigator.getGamepads = function() {
+	initGamepadProvider();
+	return gamepadProvider.getGamepads();
+};
+
+eventInit.gamepadconnected = eventInit.gamepaddisconnected = initGamepadProvider;
+
 
 })(this);

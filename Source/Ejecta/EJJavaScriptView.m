@@ -2,6 +2,7 @@
 #import "EJTimer.h"
 #import "EJBindingBase.h"
 #import "EJClassLoader.h"
+#import "EJConvertTypedArray.h"
 #import <objc/runtime.h>
 
 
@@ -31,6 +32,8 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 @synthesize isPaused;
 @synthesize hasScreenCanvas;
 @synthesize jsGlobalContext;
+@synthesize exitOnMenuPress;
+@synthesize startTime;
 
 @synthesize currentRenderingContext;
 @synthesize openGLContext;
@@ -48,61 +51,73 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 }
 
 - (id)initWithFrame:(CGRect)frame appFolder:(NSString *)folder {
-	if( self = [super initWithFrame:frame] ) {
-		oldSize = frame.size;
-		appFolder = [folder retain];
-
-		isPaused = false;
-
-		// CADisplayLink (and NSNotificationCenter?) retains it's target, but this
-		// is causing a retain loop - we can't completely release the scriptView
-		// from the outside.
-		// So we're using a "weak proxy" that doesn't retain the scriptView; we can
-		// then just invalidate the CADisplayLink in our dealloc and be done with it.
-		proxy = [[EJNonRetainingProxy proxyWithTarget:self] retain];
-
-		self.pauseOnEnterBackground = YES;
-
-		// Limit all background operations (image & sound loading) to one thread
-		backgroundQueue = [[NSOperationQueue alloc] init];
-		backgroundQueue.maxConcurrentOperationCount = 1;
-
-		timers = [[EJTimerCollection alloc] initWithScriptView:self];
-
-		displayLink = [[CADisplayLink displayLinkWithTarget:proxy selector:@selector(run:)] retain];
-		[displayLink setFrameInterval:1];
-		[displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-
-		// Create the global JS context in its own group, so it can be released properly
-		jsGlobalContext = JSGlobalContextCreateInGroup(NULL, NULL);
-		jsUndefined = JSValueMakeUndefined(jsGlobalContext);
-		JSValueProtect(jsGlobalContext, jsUndefined);
-
-		// Attach all native class constructors to 'Ejecta'
-		classLoader = [[EJClassLoader alloc] initWithScriptView:self name:@"Ejecta"];
-
-
-		// Retain the caches here, so even if they're currently unused in JavaScript,
-		// they will persist until the last scriptView is released
-		textureCache = [[EJSharedTextureCache instance] retain];
-		openALManager = [[EJSharedOpenALManager instance] retain];
-		openGLContext = [[EJSharedOpenGLContext instance] retain];
-
-		// Create the OpenGL context for Canvas2D
-		glCurrentContext = openGLContext.glContext2D;
-		[EAGLContext setCurrentContext:glCurrentContext];
-
-      //Load the Ejecta.js from this bundle, rather than the main bundle
-        NSString *path = [NSString stringWithFormat:@"%@/%@", [[NSBundle bundleForClass:[EJJavaScriptView class]] resourcePath], @"Ejecta.js"];;
-
-        NSString *script = [NSString stringWithContentsOfFile:path
-                                                     encoding:NSUTF8StringEncoding error:NULL];
-
-      [self evaluateScript:script sourceURL:path];
-	}
-	return self;
+    if( self = [super initWithFrame:frame] ) {
+        [self setupWithAppFolder:folder];
+    }
+    return self;
 }
 
+-(void)awakeFromNib {
+    [self setupWithAppFolder:EJECTA_DEFAULT_APP_FOLDER];
+}
+
+-(void)setupWithAppFolder:(NSString*)folder {
+    oldSize = self.frame.size;
+    appFolder = [folder retain];
+
+    isPaused = false;
+	exitOnMenuPress = true;
+
+    // CADisplayLink (and NSNotificationCenter?) retains it's target, but this
+    // is causing a retain loop - we can't completely release the scriptView
+    // from the outside.
+    // So we're using a "weak proxy" that doesn't retain the scriptView; we can
+    // then just invalidate the CADisplayLink in our dealloc and be done with it.
+    proxy = [[EJNonRetainingProxy proxyWithTarget:self] retain];
+
+    self.pauseOnEnterBackground = YES;
+
+    // Limit all background operations (image & sound loading) to one thread
+    backgroundQueue = [NSOperationQueue new];
+    backgroundQueue.maxConcurrentOperationCount = 1;
+
+    timers = [[EJTimerCollection alloc] initWithScriptView:self];
+	startTime = NSDate.timeIntervalSinceReferenceDate;
+
+    displayLink = [[CADisplayLink displayLinkWithTarget:proxy selector:@selector(run:)] retain];
+    [displayLink setFrameInterval:1];
+    [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+
+    // Create the global JS context in its own group, so it can be released properly
+    jsGlobalContext = JSGlobalContextCreateInGroup(NULL, NULL);
+    jsUndefined = JSValueMakeUndefined(jsGlobalContext);
+    JSValueProtect(jsGlobalContext, jsUndefined);
+
+    // Attach all native class constructors to 'Ejecta'
+    classLoader = [[EJClassLoader alloc] initWithScriptView:self name:@"Ejecta"];
+
+	// Prepare Typed Array clusterfuck
+	JSContextPrepareTypedArrayAPI(jsGlobalContext);
+
+
+    // Retain the caches here, so even if they're currently unused in JavaScript,
+    // they will persist until the last scriptView is released
+    textureCache = [[EJSharedTextureCache instance] retain];
+    openALManager = [[EJSharedOpenALManager instance] retain];
+    openGLContext = [[EJSharedOpenGLContext instance] retain];
+
+    // Create the OpenGL context for Canvas2D
+    glCurrentContext = openGLContext.glContext2D;
+    [EAGLContext setCurrentContext:glCurrentContext];
+
+    //Load the Ejecta.js from this bundle, rather than the main bundle
+    NSString *path = [NSString stringWithFormat:@"%@/%@", [[NSBundle bundleForClass:[EJJavaScriptView class]] resourcePath], @"Ejecta.js"];;
+    
+    NSString *script = [NSString stringWithContentsOfFile:path
+                                                 encoding:NSUTF8StringEncoding error:NULL];
+    
+    [self evaluateScript:script sourceURL:path];
+}
 
 - (void)dealloc {
 	// Wait until all background operations are finished. If we would just release the
@@ -174,14 +189,14 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 }
 
 - (void)removeObserverForKeyPaths:(NSArray*)keyPaths {
-	NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+	NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
 	for( NSString *name in keyPaths ) {
 		[nc removeObserver:proxy name:name object:nil];
 	}
 }
 
 - (void)observeKeyPaths:(NSArray*)keyPaths selector:(SEL)selector {
-	NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+	NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
 	for( NSString *name in keyPaths ) {
 		[nc addObserver:proxy selector:selector name:name object:nil];
 	}
@@ -312,7 +327,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 }
 
 - (void)logException:(JSValueRef)exception ctx:(JSContextRef)ctxp {
-	if( !exception ) return;
+	if( !exception ) { return; }
 
 	JSStringRef jsLinePropertyName = JSStringCreateWithUTF8CString("line");
 	JSStringRef jsFilePropertyName = JSStringCreateWithUTF8CString("sourceURL");
@@ -383,7 +398,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	if( isPaused ) { return; }
 
 	[windowEventsDelegate pause];
-	[displayLink removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+	[displayLink removeFromRunLoop:NSRunLoop.currentRunLoop forMode:NSDefaultRunLoopMode];
 	[screenRenderingContext finish];
 	isPaused = true;
 }
@@ -393,7 +408,7 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 	[windowEventsDelegate resume];
 	[EAGLContext setCurrentContext:glCurrentContext];
-	[displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+	[displayLink addToRunLoop:NSRunLoop.currentRunLoop forMode:NSDefaultRunLoopMode];
 	isPaused = false;
 }
 
@@ -446,13 +461,29 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 	[touchDelegate triggerEvent:@"touchmove" all:event.allTouches changed:touches remaining:event.allTouches];
 }
 
+-(void)pressesBegan:(NSSet*)presses withEvent:(UIPressesEvent *)event {
+	if( exitOnMenuPress && ((UIPress *)presses.anyObject).type == UIPressTypeMenu ) {
+		return [super pressesBegan:presses withEvent:event];
+	}
+}
+
+-(void)pressesEnded:(NSSet*)presses withEvent:(UIPressesEvent *)event {
+	if( exitOnMenuPress && ((UIPress *)presses.anyObject).type == UIPressTypeMenu ) {
+		return [super pressesEnded:presses withEvent:event];
+	}
+}
+
 
 //TODO: Does this belong in this class?
 #pragma mark
 #pragma mark Timers
 
 - (JSValueRef)createTimer:(JSContextRef)ctxp argc:(size_t)argc argv:(const JSValueRef [])argv repeat:(BOOL)repeat {
-	if( argc != 2 || !JSValueIsObject(ctxp, argv[0]) || !JSValueIsNumber(jsGlobalContext, argv[1]) ) {
+	if(
+		argc != 2 ||
+		!JSValueIsObject(ctxp, argv[0]) ||
+		!JSValueIsNumber(jsGlobalContext, argv[1])
+	) {
 		return NULL;
 	}
 

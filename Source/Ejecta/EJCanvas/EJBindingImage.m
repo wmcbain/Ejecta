@@ -110,11 +110,11 @@ EJ_BIND_SET(src, ctx, value) {
 }
 
 EJ_BIND_GET(width, ctx ) {
-	return JSValueMakeNumber( ctx, texture.width / texture.contentScale );
+	return JSValueMakeNumber( ctx, texture.width );
 }
 
 EJ_BIND_GET(height, ctx ) {
-	return JSValueMakeNumber( ctx, texture.height / texture.contentScale );
+	return JSValueMakeNumber( ctx, texture.height );
 }
 
 EJ_BIND_GET(complete, ctx ) {
@@ -125,5 +125,6 @@ EJ_BIND_EVENT(load);
 EJ_BIND_EVENT(error);
 
 EJ_BIND_CONST(nodeName, "IMG");
+EJ_BIND_CONST(tagName, "IMG");
 
 @end
