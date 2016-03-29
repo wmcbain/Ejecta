@@ -11,6 +11,8 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '8.0'
 
   s.source_files = 'Source/Ejecta/**/*.{h,m,mm}', 'Source/lib/SocketRocket/SRWebSocket.{h,m}'
+  s.public_header_files = 'Source/Ejecta/**/*.h'
+  s.private_header_files = 'Source/Ejecta/EJCanvas/2D/EJCanvasShaders.h', 'Source/lib/SocketRocket/SRWebSocket.h'
   s.resources    = 'Source/Ejecta/Ejecta.js', 'Source/Ejecta/EJCanvas/2D/Shaders/*'
   s.requires_arc = "Source/lib/SocketRocket/SRWebSocket.m"
 
@@ -20,6 +22,8 @@ Pod::Spec.new do |s|
   s.subspec 'Library' do |os|
     os.source_files = 'Source/Ejecta/**/*.{h,m,mm}', 'Source/lib/SocketRocket/SRWebSocket.{h,m}'
 #    os.vendored_frameworks = 'Source/lib/JavaScriptCore.framework'
+    os.public_header_files = 'Source/Ejecta/**/*.h'
+    os.private_header_files = 'Source/Ejecta/EJCanvas/2D/EJCanvasShaders.h', 'Source/lib/SocketRocket/SRWebSocket.h'
     os.library = 'stdc++', 'icucore'
     s.pod_target_xcconfig = {
       'CLANG_CXX_LANGUAGE_STANDARD' => 'gnu++98',
