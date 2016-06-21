@@ -380,7 +380,12 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 
 - (void)run:(CADisplayLink *)sender {
 	if(isPaused) { return; }
-
+	
+	// Check for lost gl context before invoking any JS calls
+	if( glCurrentContext && EAGLContext.currentContext != glCurrentContext ) {
+		EAGLContext.currentContext = glCurrentContext;
+	}
+	
 	// We rather poll for device motion updates at the beginning of each frame instead of
 	// spamming out updates that will never be seen.
 	[deviceMotionDelegate triggerDeviceMotionEvents];
@@ -442,14 +447,17 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 #pragma mark Touch handlers
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-	[touchDelegate triggerEvent:@"touchstart" all:event.allTouches changed:touches remaining:event.allTouches];
+	[touchDelegate triggerEvent:@"touchstart" timestamp:event.timestamp
+		all:event.allTouches changed:touches remaining:event.allTouches];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
 	NSMutableSet *remaining = [event.allTouches mutableCopy];
 	[remaining minusSet:touches];
+	
+	[touchDelegate triggerEvent:@"touchend" timestamp:event.timestamp
+		all:event.allTouches changed:touches remaining:remaining];
 
-	[touchDelegate triggerEvent:@"touchend" all:event.allTouches changed:touches remaining:remaining];
 	[remaining release];
 }
 
@@ -458,7 +466,8 @@ void EJBlockFunctionFinalize(JSObjectRef object) {
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
-	[touchDelegate triggerEvent:@"touchmove" all:event.allTouches changed:touches remaining:event.allTouches];
+	[touchDelegate triggerEvent:@"touchmove" timestamp:event.timestamp
+		all:event.allTouches changed:touches remaining:event.allTouches];
 }
 
 -(void)pressesBegan:(NSSet*)presses withEvent:(UIPressesEvent *)event {
